@@ -1,13 +1,39 @@
+use std::fmt::Display;
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Token {
     Num(f64),
+    Var(char),
     Div,
     Mult,
     Plus,
     Minus,
     RParen,
     LParen,
+    Power,
     Eoe,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: Figure out how to not allocate every time
+        write!(
+            f,
+            "{}",
+            match self {
+                Token::Num(num) => num.to_string(),
+                Token::Var(var) => var.to_string(),
+                Token::Mult => "*".to_string(),
+                Token::Div => "/".to_string(),
+                Token::Plus => "+".to_string(),
+                Token::Minus => "-".to_string(),
+                Token::LParen => "(".to_string(),
+                Token::RParen => ")".to_string(),
+                Token::Power => "^".to_string(),
+                Token::Eoe => "".to_string(),
+            }
+        )
+    }
 }
 
 pub struct Tokenizer<'a> {
@@ -38,6 +64,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 '*' => Token::Mult,
                 '(' => Token::LParen,
                 ')' => Token::RParen,
+                '^' => Token::Power,
                 '0'..='9' => {
                     let mut num = next.to_string();
                     while self
@@ -62,7 +89,8 @@ impl<'a> Iterator for Tokenizer<'a> {
                     }
                     Token::Num(num.parse().unwrap())
                 }
-                _ => return None,
+                'A'..='Z' | 'a'..='z' => Token::Var(*next),
+                _ => return None, // Handle wrong tokens a different way
             };
             Some(token)
         } else {
@@ -115,5 +143,12 @@ mod tests {
                 Token::Num(10.0)
             ]
         );
+    }
+
+    #[test]
+    fn test_var() {
+        let str = "a + 3".chars().collect::<Vec<_>>();
+        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
+        assert_eq!(tokens, vec![Token::Var('a'), Token::Plus, Token::Num(3.0)]);
     }
 }

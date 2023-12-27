@@ -16,6 +16,7 @@ pub fn interpret(expr: Expr) -> f64 {
         }
         Expr::Grouping(expr) => interpret(*expr),
         Expr::Negative(expr) => -interpret(*expr),
+        Expr::Exponent(base, exponent) => interpret(*base).powf(interpret(*exponent)),
     }
 }
 
