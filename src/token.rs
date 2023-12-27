@@ -1,12 +1,13 @@
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Token {
     Num(f64),
     Div,
     Mult,
-    Add,
-    Sub,
+    Plus,
+    Minus,
     RParen,
     LParen,
+    Eoe,
 }
 
 pub struct Tokenizer<'a> {
@@ -31,8 +32,8 @@ impl<'a> Iterator for Tokenizer<'a> {
                     return self.next();
                 }
                 '/' => Token::Div,
-                '+' => Token::Add,
-                '-' => Token::Sub,
+                '+' => Token::Plus,
+                '-' => Token::Minus,
                 '%' => Token::Div,
                 '*' => Token::Mult,
                 '(' => Token::LParen,
@@ -59,7 +60,6 @@ impl<'a> Iterator for Tokenizer<'a> {
                             self.index += 1;
                         }
                     }
-                    println!("Input: {:?} Index: {:?}", self.input, self.index);
                     Token::Num(num.parse().unwrap())
                 }
                 _ => return None,
@@ -79,7 +79,7 @@ mod tests {
     fn test_add() {
         let str = "1.3+3.2".chars().collect::<Vec<_>>();
         let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
-        assert_eq!(tokens, vec![Token::Num(1.3), Token::Add, Token::Num(3.2),]);
+        assert_eq!(tokens, vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]);
     }
 
     #[test]
@@ -107,7 +107,7 @@ mod tests {
             tokens,
             vec![
                 Token::Num(13.5),
-                Token::Add,
+                Token::Plus,
                 Token::Num(12.5),
                 Token::Mult,
                 Token::Num(30.5),

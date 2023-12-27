@@ -1,9 +1,30 @@
-use tc::token::{Token, Tokenizer};
+use tc::{interpreter::interpret, parse::Parser, token::Tokenizer};
 
 fn main() {
-    let str = "1 + 3".chars().collect::<Vec<_>>();
+    run_repl();
+}
 
-    let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
+fn run_repl() {
+    use std::io::{self, Write};
 
-    assert_eq!(tokens, vec![Token::Num(1.0), Token::Add, Token::Num(3.0),]);
+    println!("Welcome to the TC REPL");
+    println!("Press q to quit");
+    let mut buffer = String::new();
+    loop {
+        print!("> ");
+        io::stdout().flush().expect("Failed to flush output");
+        io::stdin()
+            .read_line(&mut buffer)
+            .expect("Failed to read input");
+        let input = buffer.trim();
+        if input.to_lowercase() == "q" {
+            break;
+        }
+        let tokens =
+            Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).collect::<Vec<_>>();
+        let expr = Parser::new(tokens).parse().unwrap();
+        let res = interpret(expr);
+        println!("{res}");
+        buffer.clear();
+    }
 }
