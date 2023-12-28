@@ -9,7 +9,6 @@ use tui::Tui;
 
 mod app;
 mod event;
-mod interpreter;
 mod parse;
 mod token;
 mod tui;

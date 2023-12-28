@@ -2,12 +2,15 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{inner_write, token::Token};
 const COS: &str = "cos";
+const COSH: &str = "cosh";
 const SIN: &str = "sin";
+const SINH: &str = "sinh";
 const TAN: &str = "tan";
+const TANH: &str = "tanh";
 const LOG: &str = "log";
 const LN: &str = "ln";
 
-pub const FUNCS: [&str; 5] = [COS, SIN, TAN, LOG, LN];
+pub const FUNCS: [&str; 8] = [COS, COSH, SIN, SINH, TAN, TANH, LOG, LN];
 
 #[derive(Debug)]
 pub struct Parser {
@@ -25,8 +28,11 @@ pub struct ParseErr {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Func {
     Sin,
+    Sinh,
     Cos,
+    Cosh,
     Tan,
+    Tanh,
     Ln,
     Log(f64),
 }
@@ -42,6 +48,43 @@ pub enum Expr {
     Func(Func, Box<Expr>),
 }
 
+impl Expr {
+    pub fn eval(&self) -> f64 {
+        match self {
+            Self::Num(num) => *num,
+            Self::Binary(left, operator, right) => {
+                let left = Self::eval(left);
+                let right = Self::eval(right);
+                match operator {
+                    Token::Plus => left + right,
+                    Token::Minus => left - right,
+                    Token::Mult => left * right,
+                    Token::Div => left / right,
+                    Token::Mod => left % right,
+                    _ => unreachable!(),
+                }
+            }
+            Self::Abs(expr) => Self::eval(expr).abs(),
+            Self::Grouping(expr) => Self::eval(expr),
+            Self::Negative(expr) => -Self::eval(expr),
+            Self::Exponent(base, exponent) => Self::eval(base).powf(Self::eval(exponent)),
+            Self::Func(func, arg) => {
+                let arg = Self::eval(arg);
+                match func {
+                    Func::Sin => arg.sin(),
+                    Func::Sinh => arg.sinh(),
+                    Func::Cos => arg.cos(),
+                    Func::Cosh => arg.cosh(),
+                    Func::Tan => arg.tan(),
+                    Func::Tanh => arg.tanh(),
+                    Func::Ln => arg.ln(),
+                    Func::Log(b) => arg.log(*b),
+                }
+            }
+        }
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.format())
@@ -55,10 +98,13 @@ impl Display for Func {
             "{}",
             match self {
                 Func::Sin => SIN,
+                Func::Sinh => SINH,
                 Func::Cos => COS,
+                Func::Cosh => COSH,
                 Func::Tan => TAN,
+                Func::Tanh => TANH,
                 Func::Ln => LN,
-                Func::Log(base) => return inner_write(format!("log({})", base), f),
+                Func::Log(base) => return inner_write(format!("log{}", base), f),
             }
         )
     }
@@ -215,8 +261,11 @@ impl Parser {
             self.advance();
             let func = match func {
                 SIN => Func::Sin,
+                SINH => Func::Sinh,
                 COS => Func::Cos,
+                COSH => Func::Cosh,
                 TAN => Func::Tan,
+                TANH => Func::Tanh,
                 LN => Func::Ln,
                 LOG => {
                     if let Token::Num(base) = self.advance() {
@@ -337,12 +386,38 @@ mod tests {
         let mut parser = Parser::new(tokens, HashMap::from_iter([('a', 1.0)]));
         let expr = Expr::Binary(
             Box::new(Expr::Num(1.0)),
-            Token::Div,
+            Token::Plus,
             Box::new(Expr::Num(3.0)),
         );
 
         let expected = parser.parse().unwrap();
 
         assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn simple_add_eval() {
+        let expr = Expr::Binary(
+            Box::new(Expr::Num(5.0)),
+            Token::Plus,
+            Box::new(Expr::Num(1.0)),
+        );
+
+        assert_eq!(expr.eval(), 6.0);
+    }
+
+    #[test]
+    fn test_negative() {
+        let expr = Expr::Binary(
+            Box::new(Expr::Grouping(Box::new(Expr::Binary(
+                Box::new(Expr::Num(5.0)),
+                Token::Minus,
+                Box::new(Expr::Num(3.0)),
+            )))),
+            Token::Mult,
+            Box::new(Expr::Negative(Box::new(Expr::Num(3.0)))),
+        );
+
+        assert_eq!(expr.eval(), -6.0);
     }
 }

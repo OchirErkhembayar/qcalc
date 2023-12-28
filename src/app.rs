@@ -12,7 +12,6 @@ use ratatui::{
 use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
-    interpreter::interpret,
     parse::{Expr, ParseErr, Parser},
     token::{Token, Tokenizer},
 };
@@ -90,7 +89,7 @@ impl<'ta> App<'ta> {
         let res = Parser::new(tokens, self.stored_vals.clone()).parse();
         let output = match res {
             Ok(expr) => {
-                let val = interpret(expr.clone()); // TODO: Don't clone this
+                let val = expr.eval();
                 if !self.expr_history.contains(&expr) {
                     self.expr_history.push(expr);
                 }

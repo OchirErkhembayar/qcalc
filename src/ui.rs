@@ -142,8 +142,11 @@ pub fn render(app: &mut App, f: &mut Frame) {
 
                 let message = "
 cos(_rads_)
+cosh(_rads_)
 sin(_rads_)
+sinh(_rads_)
 tan(_rads_)
+tanh(_rads_)
 log_base_(_arg_)
 ln(_arg_)";
                 let message_block = Block::default()
