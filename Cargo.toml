@@ -7,7 +7,7 @@ description = """
 qcalc is a simple but effective terminal calculator for quick access and ease of use. It supports
 history of expressions, built-in functions and stored variables
 """
-licence = "MIT"
+license = "MIT"
 homepage = "https://github.com/OchirErkhembayar/tc#readme"
 repository = "https://github.com/OchirErkhembayar/tc"
 readme = "README.md"
