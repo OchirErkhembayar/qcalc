@@ -1,10 +1,10 @@
 [package]
-name = "quick-calc"
+name = "qcalc"
 version = "0.1.0"
 edition = "2021"
 authors = ["ochir <ochir_erkhembayar@yahoo.com>"]
 description = """
-quick-calc is a simple but effective terminal calculator for quick access and ease of use. It supports
+qcalc is a simple but effective terminal calculator for quick access and ease of use. It supports
 history of expressions, built-in functions and stored variables
 """
 licence = "MIT"

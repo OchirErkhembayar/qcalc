@@ -9,5 +9,5 @@
 use color_eyre::Result;
 
 fn main() -> Result<()> {
-    quick_calc::run()
+    qcalc::run()
 }
