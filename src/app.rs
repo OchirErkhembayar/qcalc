@@ -1,4 +1,9 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    f64::consts::{E, PI},
+};
+
+const CONSTS: [(char, f64); 2] = [('p', PI), ('e', E)];
 
 use ratatui::{
     style::{Color, Style},
@@ -17,6 +22,10 @@ pub enum InputType {
     SetVar,
 }
 
+pub enum Popup {
+    Funcs,
+}
+
 pub struct App<'ta> {
     pub input: TextArea<'ta>,
     pub input_type: InputType,
@@ -25,19 +34,30 @@ pub struct App<'ta> {
     pub expr_history: Vec<Expr>,
     pub expr_selector: usize,
     pub should_quit: bool,
+    pub popup: Option<Popup>,
 }
 
 impl<'ta> App<'ta> {
     pub fn new() -> Self {
+        let stored_vals = HashMap::from_iter(CONSTS);
         Self {
-            input: textarea(None, None),
+            input: textarea(None, None, None),
             input_type: InputType::Expr,
             output: None,
-            stored_vals: HashMap::new(),
+            stored_vals,
             expr_history: Vec::new(),
             expr_selector: 0,
             should_quit: false,
+            popup: None,
         }
+    }
+
+    pub fn reset_vals(&mut self) {
+        self.stored_vals = HashMap::from_iter(CONSTS);
+    }
+
+    pub fn reset_exprs(&mut self) {
+        self.expr_history.clear();
     }
 
     pub fn input(&mut self, input: Input) {
@@ -45,17 +65,16 @@ impl<'ta> App<'ta> {
             InputType::Expr => self.input.input(input),
             InputType::SetVar => {
                 if let Key::Char(c) = input.key {
-                    // TODO: Wtf is this
-                    let output = self
-                        .output
-                        .as_ref()
-                        .unwrap()
-                        .to_owned()
-                        .as_ref()
-                        .to_owned()
-                        .unwrap();
-                    self.stored_vals.insert(c, *output);
-                    self.input = textarea(None, None);
+                    if c.is_ascii_alphabetic() {
+                        let output = self.output.as_ref().unwrap().as_ref().unwrap();
+                        self.stored_vals.insert(c, *output);
+                    } else {
+                        self.output = Some(Err(ParseErr::new(
+                            Token::Var(c),
+                            "Variable must a single alphabetic character",
+                        )));
+                    }
+                    self.input = textarea(None, None, None);
                     self.input_type = InputType::Expr;
                 }
                 true
@@ -83,7 +102,7 @@ impl<'ta> App<'ta> {
             Err(err) => Err(err),
         };
         self.output = Some(output);
-        self.input = textarea(None, None);
+        self.input = textarea(None, None, None);
     }
 
     // true == select up | false == select down
@@ -95,25 +114,31 @@ impl<'ta> App<'ta> {
             if self.expr_selector > 0 {
                 self.expr_selector -= 1;
             }
-        } else {
-            if self.expr_selector > self.expr_history.len() - 1 {
-                self.expr_selector -= 1;
-            } else if self.expr_selector < self.expr_history.len() - 1 {
-                self.expr_selector += 1;
-            }
+        } else if self.expr_selector > self.expr_history.len() - 1 {
+            self.expr_selector -= 1;
+        } else if self.expr_selector < self.expr_history.len() - 1 {
+            self.expr_selector += 1;
         }
         let expr = &self.expr_history[self.expr_selector];
         let string = expr.format();
-        self.input = textarea(Some(string), None);
+        self.input = textarea(Some(string), None, None);
     }
 
     pub fn save_result(&mut self) {
-        self.input = textarea(None, Some("Select a variable name"));
+        self.input = textarea(
+            None,
+            Some("Select one letter"),
+            Some("Enter a variable name"),
+        );
         self.input_type = InputType::SetVar;
     }
 }
 
-fn textarea<'a>(content: Option<String>, placeholder: Option<&'a str>) -> TextArea<'a> {
+fn textarea<'a>(
+    content: Option<String>,
+    placeholder: Option<&'a str>,
+    title: Option<&'a str>,
+) -> TextArea<'a> {
     let mut textarea = if let Some(content) = content {
         TextArea::new(Vec::from([content]))
     } else {
@@ -122,7 +147,7 @@ fn textarea<'a>(content: Option<String>, placeholder: Option<&'a str>) -> TextAr
     textarea.set_placeholder_text(placeholder.unwrap_or("Start typing..."));
     textarea.set_block(
         Block::default()
-            .title("Input")
+            .title(title.unwrap_or("Input"))
             .style(Style::default().fg(Color::White))
             .borders(Borders::ALL)
             .padding(Padding::horizontal(1)),

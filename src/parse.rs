@@ -1,6 +1,13 @@
 use std::{collections::HashMap, fmt::Display};
 
-use crate::token::Token;
+use crate::{inner_write, token::Token};
+const COS: &str = "cos";
+const SIN: &str = "sin";
+const TAN: &str = "tan";
+const LOG: &str = "log";
+const LN: &str = "ln";
+
+pub const FUNCS: [&str; 5] = [COS, SIN, TAN, LOG, LN];
 
 #[derive(Debug)]
 pub struct Parser {
@@ -16,17 +23,44 @@ pub struct ParseErr {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Func {
+    Sin,
+    Cos,
+    Tan,
+    Ln,
+    Log(f64),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
     Num(f64),
     Negative(Box<Expr>),
+    Abs(Box<Expr>),
     Exponent(Box<Expr>, Box<Expr>),
+    Func(Func, Box<Expr>),
 }
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.format())
+    }
+}
+
+impl Display for Func {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Func::Sin => SIN,
+                Func::Cos => COS,
+                Func::Tan => TAN,
+                Func::Ln => LN,
+                Func::Log(base) => return inner_write(format!("log({})", base), f),
+            }
+        )
     }
 }
 
@@ -36,10 +70,12 @@ impl Expr {
             Self::Num(num) => num.to_string(),
             Self::Negative(expr) => format!("-{}", expr.format()),
             Self::Grouping(expr) => format!("({})", expr.format()),
+            Self::Abs(expr) => format!("|{}|", expr.format()),
             Self::Binary(left, operator, right) => {
                 format!("{}{}{}", left.format(), operator, right.format())
             }
             Self::Exponent(base, exponent) => format!("{}^{}", base.format(), exponent.format()),
+            Self::Func(func, argument) => format!("{}({})", func, argument.format()),
         }
     }
 }
@@ -51,7 +87,7 @@ impl Display for ParseErr {
 }
 
 impl ParseErr {
-    fn new(token: Token, msg: &'static str) -> Self {
+    pub fn new(token: Token, msg: &'static str) -> Self {
         Self { token, msg }
     }
 }
@@ -121,7 +157,7 @@ impl Parser {
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.exponent()?;
-        while self.peek() == Token::Div || self.peek() == Token::Mult {
+        while self.peek() == Token::Div || self.peek() == Token::Mult || self.peek() == Token::Mod {
             let operator = self.advance();
             let right = self.exponent()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -161,13 +197,40 @@ impl Parser {
             self.consume(Token::RParen, "Missing closing parentheses")?;
             return Ok(Expr::Grouping(expr));
         }
+        if let Token::Pipe = token {
+            self.advance();
+            let expr = Box::new(self.expression()?);
+            self.consume(Token::Pipe, "Missing closing pipe")?;
+            return Ok(Expr::Abs(expr));
+        }
         if let Token::Var(var) = token {
-            if let Some(&num) = self.values.get(&var).clone() {
+            if let Some(&num) = self.values.get(&var) {
                 self.advance();
                 return Ok(Expr::Num(num));
             } else {
                 return Err(ParseErr::new(token, "Unknown variable"));
             }
+        }
+        if let Token::Func(func) = token {
+            self.advance();
+            let func = match func {
+                SIN => Func::Sin,
+                COS => Func::Cos,
+                TAN => Func::Tan,
+                LN => Func::Ln,
+                LOG => {
+                    if let Token::Num(base) = self.advance() {
+                        Func::Log(base)
+                    } else {
+                        return Err(ParseErr::new(token, "Missing base for log function"));
+                    }
+                }
+                _ => return Err(ParseErr::new(token, "Unknown function")),
+            };
+            self.consume(Token::LParen, "Missing opening parentheses")?;
+            let arg = Box::new(self.expression()?);
+            self.consume(Token::RParen, "Missing closing parentheses")?;
+            return Ok(Expr::Func(func, arg));
         }
         Err(ParseErr::new(token, "Expected expression"))
     }

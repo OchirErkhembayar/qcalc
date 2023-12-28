@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::CrosstermBackend, Terminal};
 use std::io;
 
-use app::App;
+use app::{App, Popup};
 use event::{Event, EventHandler};
 use tui::Tui;
 
@@ -39,22 +39,45 @@ pub fn run() -> Result<()> {
 }
 
 fn update(app: &mut App, key_event: KeyEvent) {
-    match key_event.code {
-        KeyCode::Char('q') => {
-            app.should_quit = true;
-        }
-        KeyCode::Up if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.input_select(true);
-        }
-        KeyCode::Down if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.input_select(false);
-        }
-        KeyCode::Char('s') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-            if app.output.as_ref().is_some_and(|o| o.is_ok()) {
-                app.save_result();
+    if app.popup.is_some() {
+        app.popup = None;
+    } else {
+        match key_event.code {
+            KeyCode::Char('q') => {
+                app.should_quit = true;
             }
+            KeyCode::Up | KeyCode::Char('k')
+                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                app.input_select(true);
+            }
+            KeyCode::Down | KeyCode::Char('j')
+                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                app.input_select(false);
+            }
+            KeyCode::Char('s') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                if app.output.as_ref().is_some_and(|o| o.is_ok()) {
+                    app.save_result();
+                }
+            }
+            KeyCode::Char('e') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.reset_exprs();
+            }
+            KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.reset_vals();
+            }
+            KeyCode::Char('f') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.popup = Some(Popup::Funcs);
+            }
+            KeyCode::Enter => app.eval(),
+            _ => app.input(key_event.into()),
         }
-        KeyCode::Enter => app.eval(),
-        _ => app.input(key_event.into()),
     }
+}
+
+// TODO: Turn this into a decl macro
+#[inline(always)]
+fn inner_write<T: std::fmt::Display>(val: T, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", val,)
 }

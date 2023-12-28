@@ -2,16 +2,15 @@ use ratatui::{
     prelude::{Constraint, Direction, Frame, Layout, Line},
     style::{Color, Style},
     text::{Span, Text},
-    widgets::{Block, Borders, List, ListItem, Padding, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
 
-use crate::app::App;
+use crate::app::{App, Popup};
 
 pub fn render(app: &mut App, f: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
             Constraint::Min(1),
             Constraint::Length(3),
             Constraint::Length(3),
@@ -19,26 +18,12 @@ pub fn render(app: &mut App, f: &mut Frame) {
         ])
         .split(f.size());
 
-    // Title
-    {
-        let title_block = Block::default()
-            .borders(Borders::ALL)
-            .padding(Padding::horizontal(2))
-            .style(Style::default());
-        let title = Paragraph::new(Text::styled(
-            "Do some calculations stuff",
-            Style::default().fg(Color::LightYellow),
-        ))
-        .block(title_block);
-        f.render_widget(title, chunks[0]);
-    }
-
     // Middle
     {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(chunks[1]);
+            .split(chunks[0]);
 
         // Value map
         {
@@ -118,7 +103,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
                     Err(err) => (format!("{}", err), Color::Red, Color::Red),
                 },
                 None => (
-                    format!("Press enter to evaluate expression"),
+                    "Press enter to evaluate expression".to_string(),
                     Color::LightYellow,
                     Color::White,
                 ),
@@ -130,8 +115,49 @@ pub fn render(app: &mut App, f: &mut Frame) {
             Paragraph::new(Text::styled(content, Style::default().fg(color))).block(output_block)
         };
 
-        f.render_widget(result, chunks[2]);
-        f.render_widget(app.input.widget(), chunks[3]);
+        f.render_widget(result, chunks[1]);
+        f.render_widget(app.input.widget(), chunks[2]);
+    }
+
+    if let Some(popup) = &app.popup {
+        match popup {
+            Popup::Funcs => {
+                let popup_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Percentage(15),
+                        Constraint::Percentage(70),
+                        Constraint::Percentage(15),
+                    ])
+                    .split(f.size());
+
+                let area = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Percentage(10),
+                        Constraint::Percentage(80),
+                        Constraint::Percentage(10),
+                    ])
+                    .split(popup_layout[1])[1];
+
+                let message = "
+cos(_rads_)
+sin(_rads_)
+tan(_rads_)
+log_base_(_arg_)
+ln(_arg_)";
+                let message_block = Block::default()
+                    .title("Available functions")
+                    .borders(Borders::ALL)
+                    .padding(Padding::horizontal(3))
+                    .style(Style::default().fg(Color::White));
+                let message_text = Paragraph::new(message)
+                    .wrap(Wrap::default())
+                    .block(message_block);
+                f.render_widget(Clear, area);
+                f.render_widget(message_text, area);
+            }
+        }
     }
 
     // Footer
@@ -140,11 +166,16 @@ pub fn render(app: &mut App, f: &mut Frame) {
             .borders(Borders::ALL)
             .padding(Padding::horizontal(1))
             .style(Style::default());
+        let message = if app.popup.is_some() {
+            "(Esc) Back"
+        } else {
+            "(q) Quit | Ctrl + (s) Store result (e/v) Reset exprs/vars (f) Available funcs"
+        };
         let help = Paragraph::new(Text::styled(
-            "(Ctrl s) Store result in variable",
+            message,
             Style::default().fg(Color::LightYellow),
         ))
         .block(help_block);
-        f.render_widget(help, chunks[4]);
+        f.render_widget(help, chunks[3]);
     }
 }

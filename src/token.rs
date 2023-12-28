@@ -1,9 +1,13 @@
-use std::fmt::Display;
+use crate::{inner_write, parse::FUNCS};
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Token {
     Num(f64),
-    Var(char),
+    Var(char), // Change this to a string and combine functions and vars into one table and
+    // dynamimcally use them
+    Func(&'static str),
+    Pipe,
+    Mod,
     Div,
     Mult,
     Plus,
@@ -14,25 +18,23 @@ pub enum Token {
     Eoe,
 }
 
-impl Display for Token {
+impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: Figure out how to not allocate every time
-        write!(
-            f,
-            "{}",
-            match self {
-                Token::Num(num) => num.to_string(),
-                Token::Var(var) => var.to_string(),
-                Token::Mult => "*".to_string(),
-                Token::Div => "/".to_string(),
-                Token::Plus => "+".to_string(),
-                Token::Minus => "-".to_string(),
-                Token::LParen => "(".to_string(),
-                Token::RParen => ")".to_string(),
-                Token::Power => "^".to_string(),
-                Token::Eoe => "".to_string(),
-            }
-        )
+        match self {
+            Token::Num(num) => inner_write(num, f),
+            Token::Var(var) => inner_write(var, f),
+            Token::Func(func) => inner_write(func, f),
+            Token::Pipe => inner_write('|', f),
+            Token::Mod => inner_write('%', f),
+            Token::Mult => inner_write('*', f),
+            Token::Div => inner_write('/', f),
+            Token::Plus => inner_write('+', f),
+            Token::Minus => inner_write('-', f),
+            Token::LParen => inner_write('(', f),
+            Token::RParen => inner_write(')', f),
+            Token::Power => inner_write('^', f),
+            Token::Eoe => inner_write("", f),
+        }
     }
 }
 
@@ -57,10 +59,11 @@ impl<'a> Iterator for Tokenizer<'a> {
                 ' ' => {
                     return self.next();
                 }
+                '|' => Token::Pipe,
                 '/' => Token::Div,
                 '+' => Token::Plus,
                 '-' => Token::Minus,
-                '%' => Token::Div,
+                '%' => Token::Mod,
                 '*' => Token::Mult,
                 '(' => Token::LParen,
                 ')' => Token::RParen,
@@ -89,7 +92,31 @@ impl<'a> Iterator for Tokenizer<'a> {
                     }
                     Token::Num(num.parse().unwrap())
                 }
-                'A'..='Z' | 'a'..='z' => Token::Var(*next),
+                'A'..='Z' | 'a'..='z' => {
+                    let mut func = next.to_string();
+                    while self
+                        .input
+                        .get(self.index)
+                        .is_some_and(|c| c.is_ascii_alphabetic())
+                    {
+                        func.push(self.input[self.index]);
+                        self.index += 1;
+                    }
+                    if func.len() == 1 {
+                        Token::Var(*next)
+                    } else {
+                        // Tokenizer shouldn't really be doing this but
+                        // I don't want to have `String` in the enum because
+                        // we'll lose the `Copy` trait.
+                        let name = if let Some(pos) = FUNCS.iter().position(|f| *f == func.as_str())
+                        {
+                            FUNCS[pos]
+                        } else {
+                            "unknown"
+                        };
+                        Token::Func(name)
+                    }
+                }
                 _ => return None, // Handle wrong tokens a different way
             };
             Some(token)

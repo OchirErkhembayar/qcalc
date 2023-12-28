@@ -1,4 +1,7 @@
-use crate::{parse::Expr, token::Token};
+use crate::{
+    parse::{Expr, Func},
+    token::Token,
+};
 
 pub fn interpret(expr: Expr) -> f64 {
     match expr {
@@ -11,12 +14,24 @@ pub fn interpret(expr: Expr) -> f64 {
                 Token::Minus => left - right,
                 Token::Mult => left * right,
                 Token::Div => left / right,
+                Token::Mod => left % right,
                 _ => unreachable!(),
             }
         }
+        Expr::Abs(expr) => interpret(*expr).abs(),
         Expr::Grouping(expr) => interpret(*expr),
         Expr::Negative(expr) => -interpret(*expr),
         Expr::Exponent(base, exponent) => interpret(*base).powf(interpret(*exponent)),
+        Expr::Func(func, arg) => {
+            let arg = interpret(*arg);
+            match func {
+                Func::Sin => arg.sin(),
+                Func::Cos => arg.cos(),
+                Func::Tan => arg.tan(),
+                Func::Ln => arg.ln(),
+                Func::Log(b) => arg.log(b),
+            }
+        }
     }
 }
 
