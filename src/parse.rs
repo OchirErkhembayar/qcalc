@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, ops::Neg};
 
 use crate::{inner_write, token::Token};
 const COS: &str = "cos";
@@ -48,40 +48,9 @@ pub enum Expr {
     Func(Func, Box<Expr>),
 }
 
-impl Expr {
-    pub fn eval(&self) -> f64 {
-        match self {
-            Self::Num(num) => *num,
-            Self::Binary(left, operator, right) => {
-                let left = Self::eval(left);
-                let right = Self::eval(right);
-                match operator {
-                    Token::Plus => left + right,
-                    Token::Minus => left - right,
-                    Token::Mult => left * right,
-                    Token::Div => left / right,
-                    Token::Mod => left % right,
-                    _ => unreachable!(),
-                }
-            }
-            Self::Abs(expr) => Self::eval(expr).abs(),
-            Self::Grouping(expr) => Self::eval(expr),
-            Self::Negative(expr) => -Self::eval(expr),
-            Self::Exponent(base, exponent) => Self::eval(base).powf(Self::eval(exponent)),
-            Self::Func(func, arg) => {
-                let arg = Self::eval(arg);
-                match func {
-                    Func::Sin => arg.sin(),
-                    Func::Sinh => arg.sinh(),
-                    Func::Cos => arg.cos(),
-                    Func::Cosh => arg.cosh(),
-                    Func::Tan => arg.tan(),
-                    Func::Tanh => arg.tanh(),
-                    Func::Ln => arg.ln(),
-                    Func::Log(b) => arg.log(*b),
-                }
-            }
-        }
+impl Display for ParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ERROR: {}", self.msg)
     }
 }
 
@@ -111,6 +80,41 @@ impl Display for Func {
 }
 
 impl Expr {
+    pub fn eval(&self) -> f64 {
+        match self {
+            Self::Num(num) => *num,
+            Self::Binary(left, operator, right) => {
+                let left = Self::eval(left);
+                let right = Self::eval(right);
+                match operator {
+                    Token::Plus => left + right,
+                    Token::Minus => left - right,
+                    Token::Mult => left * right,
+                    Token::Div => left / right,
+                    Token::Mod => left % right,
+                    _ => unreachable!(),
+                }
+            }
+            Self::Abs(expr) => Self::eval(expr).abs(),
+            Self::Grouping(expr) => Self::eval(expr),
+            Self::Negative(expr) => Self::eval(expr).neg(),
+            Self::Exponent(base, exponent) => Self::eval(base).powf(Self::eval(exponent)),
+            Self::Func(func, arg) => {
+                let arg = Self::eval(arg);
+                match func {
+                    Func::Sin => arg.sin(),
+                    Func::Sinh => arg.sinh(),
+                    Func::Cos => arg.cos(),
+                    Func::Cosh => arg.cosh(),
+                    Func::Tan => arg.tan(),
+                    Func::Tanh => arg.tanh(),
+                    Func::Ln => arg.ln(),
+                    Func::Log(b) => arg.log(*b),
+                }
+            }
+        }
+    }
+
     pub fn format(&self) -> String {
         match self {
             Self::Num(num) => num.to_string(),
@@ -123,12 +127,6 @@ impl Expr {
             Self::Exponent(base, exponent) => format!("{}^{}", base.format(), exponent.format()),
             Self::Func(func, argument) => format!("{}({})", func, argument.format()),
         }
-    }
-}
-
-impl Display for ParseErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ERROR: {}", self.msg)
     }
 }
 

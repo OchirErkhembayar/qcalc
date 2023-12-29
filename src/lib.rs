@@ -42,7 +42,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
         app.popup = None;
     } else {
         match key_event.code {
-            KeyCode::Char('q') => {
+            KeyCode::Esc => {
                 app.should_quit = true;
             }
             KeyCode::Up | KeyCode::Char('k')
@@ -66,8 +66,14 @@ fn update(app: &mut App, key_event: KeyEvent) {
             KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.reset_vals();
             }
-            KeyCode::Char('f') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('h') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Funcs);
+            }
+            KeyCode::Char('x') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.remove_expr();
+            }
+            KeyCode::Char('r') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.round_result();
             }
             KeyCode::Enter => app.eval(),
             _ => app.input(key_event.into()),

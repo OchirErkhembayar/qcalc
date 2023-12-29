@@ -101,6 +101,9 @@ impl<'ta> App<'ta> {
             Err(err) => Err(err),
         };
         self.output = Some(output);
+        if let Some(Ok(ans)) = self.output {
+            self.stored_vals.insert('q', ans);
+        }
         self.input = textarea(None, None, None);
     }
 
@@ -130,6 +133,21 @@ impl<'ta> App<'ta> {
             Some("Enter a variable name"),
         );
         self.input_type = InputType::SetVar;
+    }
+
+    pub fn remove_expr(&mut self) {
+        if self.expr_selector < self.expr_history.len() {
+            self.expr_history.remove(self.expr_selector);
+            if !self.expr_history.is_empty() && self.expr_history.len() <= self.expr_selector {
+                self.expr_selector -= 1;
+            }
+        }
+    }
+
+    pub fn round_result(&mut self) {
+        if let Some(Ok(output)) = &mut self.output {
+            *output = output.round();
+        }
     }
 }
 

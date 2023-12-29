@@ -141,16 +141,27 @@ pub fn render(app: &mut App, f: &mut Frame) {
                     .split(popup_layout[1])[1];
 
                 let message = "
-cos(_rads_)
-cosh(_rads_)
-sin(_rads_)
-sinh(_rads_)
-tan(_rads_)
-tanh(_rads_)
-log_base_(_arg_)
-ln(_arg_)";
+Available Functions
+-------------------
+_arg_ should be replaced by an expression eg. ln(2)
+_rads_ indicates that the argument should be in radians eg. cos(p)
+
+cos(_rads_)       cosh(_rads_)
+sin(_rads_)       sinh(_rads_)
+tan(_rads_)       tanh(_rads_)
+log_base_(_arg_)  ln(_arg_)
+
+The result of a successful eval is stored in q
+
+Shortcuts
+---------
+(Ctrl r) Round result to the nearest integer
+(Ctrl s) Store result
+(Ctrl e/v) Reset exprs/vars
+(Ctrl x) Delete selected expression
+";
                 let message_block = Block::default()
-                    .title("Available functions")
+                    .title("Help")
                     .borders(Borders::ALL)
                     .padding(Padding::horizontal(3))
                     .style(Style::default().fg(Color::White));
@@ -172,7 +183,7 @@ ln(_arg_)";
         let message = if app.popup.is_some() {
             "(Esc) Back"
         } else {
-            "(q) Quit | Ctrl + (s) Store result (e/v) Reset exprs/vars (f) Available funcs"
+            "(Esc) Quit | (Ctrl h) Help"
         };
         let help = Paragraph::new(Text::styled(
             message,
