@@ -43,14 +43,18 @@ pub fn render(app: &mut App, f: &mut Frame) {
                 .block(title_block);
                 f.render_widget(title, value_chunks[0]);
             }
-            let list_items = app.stored_vals.iter().fold(vec![], |mut acc, (i, val)| {
-                let list_item = ListItem::new(Line::from(Span::styled(
-                    format!("{}: {}", i, val),
-                    Style::default().fg(Color::LightYellow),
-                )));
-                acc.push(list_item);
-                acc
-            });
+            let list_items = app
+                .interpreter
+                .vars()
+                .iter()
+                .fold(vec![], |mut acc, (i, val)| {
+                    let list_item = ListItem::new(Line::from(Span::styled(
+                        format!("{}: {}", i, val),
+                        Style::default().fg(Color::LightYellow),
+                    )));
+                    acc.push(list_item);
+                    acc
+                });
             let output_list = List::new(list_items).block(Block::default().borders(Borders::LEFT));
             f.render_widget(output_list, value_chunks[1]);
         }

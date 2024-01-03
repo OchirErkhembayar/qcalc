@@ -9,6 +9,7 @@ use tui::Tui;
 
 mod app;
 mod event;
+mod interpreter;
 mod parse;
 mod token;
 mod tui;
@@ -64,7 +65,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
                 app.reset_exprs();
             }
             KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                app.reset_vals();
+                app.reset_vars();
             }
             KeyCode::Char('h') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Funcs);

@@ -146,11 +146,11 @@ impl Parser {
     }
 
     fn at_end(&self) -> bool {
-        self.peek() == Token::Eoe
+        *self.peek() == Token::Eoe
     }
 
     fn previous(&self) -> Token {
-        self.tokens[self.current - 1]
+        self.tokens[self.current - 1].clone()
     }
 
     fn advance(&mut self) -> Token {
@@ -160,19 +160,19 @@ impl Parser {
         self.previous()
     }
 
-    fn peek(&self) -> Token {
-        self.tokens[self.current]
+    fn peek(&self) -> &Token {
+        &self.tokens[self.current]
     }
 
-    fn check(&self, token: Token) -> bool {
+    fn check(&self, token: &Token) -> bool {
         if self.at_end() {
             return false;
         }
-        self.peek() == token
+        *self.peek() == *token
     }
 
     fn consume(&mut self, token: Token, msg: &'static str) -> Result<Token, ParseErr> {
-        if self.check(token) {
+        if self.check(&token) {
             Ok(self.advance())
         } else {
             Err(ParseErr::new(token, msg))
@@ -191,7 +191,7 @@ impl Parser {
 
     fn term(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.factor()?;
-        while self.peek() == Token::Plus || self.peek() == Token::Minus {
+        while *self.peek() == Token::Plus || *self.peek() == Token::Minus {
             let operator = self.advance();
             let right = self.factor()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -201,7 +201,10 @@ impl Parser {
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.exponent()?;
-        while self.peek() == Token::Div || self.peek() == Token::Mult || self.peek() == Token::Mod {
+        while *self.peek() == Token::Div
+            || *self.peek() == Token::Mult
+            || *self.peek() == Token::Mod
+        {
             let operator = self.advance();
             let right = self.exponent()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -211,7 +214,7 @@ impl Parser {
 
     fn exponent(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.negative()?;
-        while self.peek() == Token::Power {
+        while *self.peek() == Token::Power {
             self.advance();
             let right = self.negative()?;
             expr = Expr::Exponent(Box::new(expr), Box::new(right));
@@ -220,7 +223,7 @@ impl Parser {
     }
 
     fn negative(&mut self) -> Result<Expr, ParseErr> {
-        if self.peek() == Token::Minus {
+        if *self.peek() == Token::Minus {
             self.advance();
             let right = self.negative()?;
             Ok(Expr::Negative(Box::new(right)))
@@ -230,32 +233,32 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseErr> {
-        let token = self.peek();
-        if let Token::Num(num) = token {
+        if let Token::Num(num) = *self.peek() {
             self.advance();
             return Ok(Expr::Num(num));
         }
-        if let Token::LParen = token {
+        if let Token::LParen = *self.peek() {
             self.advance();
             let expr = Box::new(self.expression()?);
             self.consume(Token::RParen, "Missing closing parentheses")?;
             return Ok(Expr::Grouping(expr));
         }
-        if let Token::Pipe = token {
+        if let Token::Pipe = *self.peek() {
             self.advance();
             let expr = Box::new(self.expression()?);
             self.consume(Token::Pipe, "Missing closing pipe")?;
             return Ok(Expr::Abs(expr));
         }
-        if let Token::Var(var) = token {
+        if let Token::Var(var) = *self.peek() {
+            // We need to stop evaluating variables here and move that to the interpreter
             if let Some(&num) = self.values.get(&var) {
                 self.advance();
                 return Ok(Expr::Num(num));
             } else {
-                return Err(ParseErr::new(token, "Unknown variable"));
+                return Err(ParseErr::new(self.peek().clone(), "Unknown variable"));
             }
         }
-        if let Token::Func(func) = token {
+        if let Token::Func(func) = *self.peek() {
             self.advance();
             let func = match func {
                 SIN => Func::Sin,
@@ -269,17 +272,20 @@ impl Parser {
                     if let Token::Num(base) = self.advance() {
                         Func::Log(base)
                     } else {
-                        return Err(ParseErr::new(token, "Missing base for log function"));
+                        return Err(ParseErr::new(
+                            self.peek().clone(),
+                            "Missing base for log function",
+                        ));
                     }
                 }
-                _ => return Err(ParseErr::new(token, "Unknown function")),
+                _ => return Err(ParseErr::new(self.peek().clone(), "Unknown function")),
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
             let arg = Box::new(self.expression()?);
             self.consume(Token::RParen, "Missing closing parentheses")?;
             return Ok(Expr::Func(func, arg));
         }
-        Err(ParseErr::new(token, "Expected expression"))
+        Err(ParseErr::new(self.peek().clone(), "Expected expression"))
     }
 }
 

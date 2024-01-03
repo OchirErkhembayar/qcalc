@@ -1,11 +1,12 @@
 use crate::{inner_write, parse::FUNCS};
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Num(f64),
     Var(char), // Change this to a string and combine functions and vars into one table and
     // dynamimcally use them
     Func(&'static str),
+    Ident(String),
     Pipe,
     Mod,
     Div,
@@ -24,6 +25,7 @@ impl std::fmt::Display for Token {
             Token::Num(num) => inner_write(num, f),
             Token::Var(var) => inner_write(var, f),
             Token::Func(func) => inner_write(func, f),
+            Token::Ident(ident) => inner_write(ident, f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
