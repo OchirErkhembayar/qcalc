@@ -1,11 +1,12 @@
-use crate::{inner_write, parse::FUNCS};
+use crate::inner_write;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Num(f64),
     Var(char), // Change this to a string and combine functions and vars into one table and
     // dynamimcally use them
-    Func(&'static str),
+    // This must go bye-bye and become an Ident
+    Fn,
     Ident(String),
     Pipe,
     Mod,
@@ -24,7 +25,7 @@ impl std::fmt::Display for Token {
         match self {
             Token::Num(num) => inner_write(num, f),
             Token::Var(var) => inner_write(var, f),
-            Token::Func(func) => inner_write(func, f),
+            Token::Fn => inner_write("fn", f),
             Token::Ident(ident) => inner_write(ident, f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
@@ -106,17 +107,10 @@ impl<'a> Iterator for Tokenizer<'a> {
                     }
                     if func.len() == 1 {
                         Token::Var(*next)
+                    } else if func == "fn" {
+                        Token::Fn
                     } else {
-                        // Tokenizer shouldn't really be doing this but
-                        // I don't want to have `String` in the enum because
-                        // we'll lose the `Copy` trait.
-                        let name = if let Some(pos) = FUNCS.iter().position(|f| *f == func.as_str())
-                        {
-                            FUNCS[pos]
-                        } else {
-                            "unknown"
-                        };
-                        Token::Func(name)
+                        Token::Ident(func)
                     }
                 }
                 _ => return None, // Handle wrong tokens a different way

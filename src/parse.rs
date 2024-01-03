@@ -10,8 +10,6 @@ const TANH: &str = "tanh";
 const LOG: &str = "log";
 const LN: &str = "ln";
 
-pub const FUNCS: [&str; 8] = [COS, COSH, SIN, SINH, TAN, TANH, LOG, LN];
-
 #[derive(Debug)]
 pub struct Parser {
     tokens: Vec<Token>,
@@ -258,9 +256,10 @@ impl Parser {
                 return Err(ParseErr::new(self.peek().clone(), "Unknown variable"));
             }
         }
-        if let Token::Func(func) = *self.peek() {
+        if let Token::Ident(func) = self.peek() {
+            let func = func.to_owned();
             self.advance();
-            let func = match func {
+            let func = match func.as_str() {
                 SIN => Func::Sin,
                 SINH => Func::Sinh,
                 COS => Func::Cos,

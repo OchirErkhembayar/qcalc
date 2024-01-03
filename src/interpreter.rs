@@ -3,21 +3,11 @@ use std::{
     f64::consts::{E, PI},
 };
 
-use crate::parse::Expr;
-
 const CONSTS: [(char, f64); 2] = [('p', PI), ('e', E)];
 
 #[derive(Debug)]
 pub struct Interpreter {
     vars: HashMap<char, f64>,
-}
-
-#[derive(Debug)]
-// I don't think this is the right terminology so feel free to LMK
-// if you can think of something better
-pub enum Stmt {
-    Expr(Expr),
-    Fn(Fn),
 }
 
 #[derive(Debug)]

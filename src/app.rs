@@ -89,15 +89,14 @@ impl<'ta> App<'ta> {
                 if self.expr_selector == self.interpreter.vars_len() {
                     self.expr_selector += 1;
                 }
+                // Only reset input if we successfully evaluate
+                self.input = textarea(None, None, None);
+                self.interpreter.save_variable('q', val);
                 Ok(val)
             }
             Err(err) => Err(err),
         };
         self.output = Some(output);
-        if let Some(Ok(ans)) = self.output {
-            self.interpreter.save_variable('q', ans);
-        }
-        self.input = textarea(None, None, None);
     }
 
     // true == select up | false == select down
