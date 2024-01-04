@@ -31,30 +31,28 @@ pub fn render(app: &mut App, f: &mut Frame) {
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(3), Constraint::Min(1)])
                 .split(layout[0]);
-            {
-                let title_block = Block::default()
-                    .borders(Borders::ALL)
-                    .padding(Padding::horizontal(2))
-                    .style(Style::default());
-                let title = Paragraph::new(Text::styled(
-                    "Saved values | Use them in your input",
-                    Style::default().fg(Color::LightYellow),
-                ))
-                .block(title_block);
-                f.render_widget(title, value_chunks[0]);
-            }
-            let list_items = app
-                .interpreter
-                .vars()
-                .iter()
-                .fold(vec![], |mut acc, (i, val)| {
+            let title_block = Block::default()
+                .borders(Borders::ALL)
+                .padding(Padding::horizontal(2))
+                .style(Style::default());
+            let title = Paragraph::new(Text::styled(
+                "Saved values/functions",
+                Style::default().fg(Color::LightYellow),
+            ))
+            .block(title_block);
+            f.render_widget(title, value_chunks[0]);
+
+            let list_items = app.interpreter.env().as_ref().borrow().vars().iter().fold(
+                vec![],
+                |mut acc, (i, val)| {
                     let list_item = ListItem::new(Line::from(Span::styled(
-                        format!("{}: {}", i, val),
+                        format!(" {}: {}", i, val),
                         Style::default().fg(Color::LightYellow),
                     )));
                     acc.push(list_item);
                     acc
-                });
+                },
+            );
             let output_list = List::new(list_items).block(Block::default().borders(Borders::LEFT));
             f.render_widget(output_list, value_chunks[1]);
         }
@@ -125,7 +123,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
 
     if let Some(popup) = &app.popup {
         match popup {
-            Popup::Funcs => {
+            Popup::Help => {
                 let popup_layout = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([

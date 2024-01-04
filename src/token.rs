@@ -3,10 +3,8 @@ use crate::inner_write;
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Num(f64),
-    Var(char), // Change this to a string and combine functions and vars into one table and
-    // dynamimcally use them
-    // This must go bye-bye and become an Ident
     Fn,
+    Comma,
     Ident(String),
     Pipe,
     Mod,
@@ -24,8 +22,8 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Num(num) => inner_write(num, f),
-            Token::Var(var) => inner_write(var, f),
             Token::Fn => inner_write("fn", f),
+            Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
@@ -62,6 +60,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 ' ' => {
                     return self.next();
                 }
+                ',' => Token::Comma,
                 '|' => Token::Pipe,
                 '/' => Token::Div,
                 '+' => Token::Plus,
@@ -105,9 +104,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                         func.push(self.input[self.index]);
                         self.index += 1;
                     }
-                    if func.len() == 1 {
-                        Token::Var(*next)
-                    } else if func == "fn" {
+                    if func == "fn" {
                         Token::Fn
                     } else {
                         Token::Ident(func)
@@ -166,12 +163,5 @@ mod tests {
                 Token::Num(10.0)
             ]
         );
-    }
-
-    #[test]
-    fn test_var() {
-        let str = "a + 3".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
-        assert_eq!(tokens, vec![Token::Var('a'), Token::Plus, Token::Num(3.0)]);
     }
 }

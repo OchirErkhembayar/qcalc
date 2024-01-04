@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fmt::Display, ops::Neg};
+use std::{error::Error, fmt::Display};
 
-use crate::{inner_write, token::Token};
+use crate::{inner_write, interpreter::Stmt, token::Token};
 const COS: &str = "cos";
 const COSH: &str = "cosh";
 const SIN: &str = "sin";
@@ -14,7 +14,6 @@ const LN: &str = "ln";
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
-    values: HashMap<char, f64>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -43,8 +42,13 @@ pub enum Expr {
     Negative(Box<Expr>),
     Abs(Box<Expr>),
     Exponent(Box<Expr>, Box<Expr>),
+    Call(String, Vec<Expr>),
     Func(Func, Box<Expr>),
+    // TODO: Change this to a String
+    Var(String),
 }
+
+impl Error for ParseErr {}
 
 impl Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,49 +82,25 @@ impl Display for Func {
 }
 
 impl Expr {
-    pub fn eval(&self) -> f64 {
-        match self {
-            Self::Num(num) => *num,
-            Self::Binary(left, operator, right) => {
-                let left = Self::eval(left);
-                let right = Self::eval(right);
-                match operator {
-                    Token::Plus => left + right,
-                    Token::Minus => left - right,
-                    Token::Mult => left * right,
-                    Token::Div => left / right,
-                    Token::Mod => left % right,
-                    _ => unreachable!(),
-                }
-            }
-            Self::Abs(expr) => Self::eval(expr).abs(),
-            Self::Grouping(expr) => Self::eval(expr),
-            Self::Negative(expr) => Self::eval(expr).neg(),
-            Self::Exponent(base, exponent) => Self::eval(base).powf(Self::eval(exponent)),
-            Self::Func(func, arg) => {
-                let arg = Self::eval(arg);
-                match func {
-                    Func::Sin => arg.sin(),
-                    Func::Sinh => arg.sinh(),
-                    Func::Cos => arg.cos(),
-                    Func::Cosh => arg.cosh(),
-                    Func::Tan => arg.tan(),
-                    Func::Tanh => arg.tanh(),
-                    Func::Ln => arg.ln(),
-                    Func::Log(b) => arg.log(*b),
-                }
-            }
-        }
-    }
-
     pub fn format(&self) -> String {
         match self {
             Self::Num(num) => num.to_string(),
             Self::Negative(expr) => format!("-{}", expr.format()),
             Self::Grouping(expr) => format!("({})", expr.format()),
             Self::Abs(expr) => format!("|{}|", expr.format()),
+            Self::Var(var) => var.to_string(),
             Self::Binary(left, operator, right) => {
                 format!("{}{}{}", left.format(), operator, right.format())
+            }
+            Self::Call(name, args) => {
+                format!(
+                    "{}({})",
+                    name,
+                    args.iter()
+                        .map(|a| a.format())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             Self::Exponent(base, exponent) => format!("{}^{}", base.format(), exponent.format()),
             Self::Func(func, argument) => format!("{}({})", func, argument.format()),
@@ -135,12 +115,8 @@ impl ParseErr {
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>, values: HashMap<char, f64>) -> Self {
-        Self {
-            tokens,
-            current: 0,
-            values,
-        }
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, current: 0 }
     }
 
     fn at_end(&self) -> bool {
@@ -179,8 +155,38 @@ impl Parser {
 }
 
 impl Parser {
-    pub fn parse(&mut self) -> Result<Expr, ParseErr> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
+        match self.peek() {
+            Token::Fn => self.function(),
+            _ => Ok(Stmt::Expr(self.expression()?)),
+        }
+    }
+
+    fn function(&mut self) -> Result<Stmt, ParseErr> {
+        self.advance();
+        let name = match self.advance() {
+            Token::Ident(name) => name,
+            token => return Err(ParseErr::new(token, "Missing function name")),
+        };
+        self.consume(Token::LParen, "Missing opening parentheses")?;
+        let mut parameters = Vec::new();
+        if *self.peek() != Token::RParen {
+            loop {
+                let next = self.advance();
+                if let Token::Ident(arg) = next {
+                    parameters.push(arg);
+                } else {
+                    return Err(ParseErr::new(next, "Expected argument"));
+                }
+                if *self.peek() != Token::Comma {
+                    break;
+                }
+                self.advance();
+            }
+        }
+        self.consume(Token::RParen, "Missing closing parentheses")?;
+        let expr = self.expression()?;
+        Ok(Stmt::Fn(name, parameters, expr))
     }
 
     fn expression(&mut self) -> Result<Expr, ParseErr> {
@@ -226,8 +232,31 @@ impl Parser {
             let right = self.negative()?;
             Ok(Expr::Negative(Box::new(right)))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> Result<Expr, ParseErr> {
+        let expr = self.primary()?;
+
+        if let Expr::Var(name) = &expr {
+            if self.check(&Token::LParen) {
+                self.advance();
+                let mut args = vec![];
+                if !self.check(&Token::RParen) {
+                    loop {
+                        args.push(self.expression()?);
+                        if !self.check(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
+                self.consume(Token::RParen, "Missing closing parentheses")?;
+                return Ok(Expr::Call(name.to_owned(), args));
+            }
+        }
+        Ok(expr)
     }
 
     fn primary(&mut self) -> Result<Expr, ParseErr> {
@@ -247,15 +276,9 @@ impl Parser {
             self.consume(Token::Pipe, "Missing closing pipe")?;
             return Ok(Expr::Abs(expr));
         }
-        if let Token::Var(var) = *self.peek() {
-            // We need to stop evaluating variables here and move that to the interpreter
-            if let Some(&num) = self.values.get(&var) {
-                self.advance();
-                return Ok(Expr::Num(num));
-            } else {
-                return Err(ParseErr::new(self.peek().clone(), "Unknown variable"));
-            }
-        }
+        // This is still assuming Ident == Func
+        // Needs to start treating ( as call expressions properly
+        // A solution for built in functions might be to treat them as a separate case entirely
         if let Token::Ident(func) = self.peek() {
             let func = func.to_owned();
             self.advance();
@@ -277,7 +300,7 @@ impl Parser {
                         ));
                     }
                 }
-                _ => return Err(ParseErr::new(self.peek().clone(), "Unknown function")),
+                _ => return Ok(Expr::Var(func)),
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
             let arg = Box::new(self.expression()?);
@@ -293,10 +316,10 @@ mod tests {
     use super::*;
 
     fn check(tokens: Vec<Token>, expected: Expr) {
-        let mut parser = Parser::new(tokens, HashMap::new());
+        let mut parser = Parser::new(tokens);
         let expr = parser.parse().unwrap();
 
-        assert_eq!(expr, expected,);
+        assert_eq!(expr, Stmt::Expr(expected));
     }
 
     #[test]
@@ -373,7 +396,7 @@ mod tests {
     #[test]
     fn test_missing_closing_paren() {
         let tokens = vec![Token::Minus, Token::LParen, Token::Num(5.0), Token::Eoe];
-        if let Err(err) = Parser::new(tokens, HashMap::new()).parse() {
+        if let Err(err) = Parser::new(tokens).parse() {
             assert_eq!(
                 err,
                 ParseErr::new(Token::RParen, "Missing closing parentheses")
@@ -384,43 +407,58 @@ mod tests {
     }
 
     #[test]
-    fn test_variable() {
-        let tokens = vec![Token::Var('a'), Token::Plus, Token::Num(3.0), Token::Eoe];
-        let mut parser = Parser::new(tokens, HashMap::from_iter([('a', 1.0)]));
-        let expr = Expr::Binary(
-            Box::new(Expr::Num(1.0)),
+    fn test_function_mult_params() {
+        let tokens = vec![
+            Token::Fn,
+            Token::Ident("foo".to_string()),
+            Token::LParen,
+            Token::Ident("x".to_string()),
+            Token::Comma,
+            Token::Ident("y".to_string()),
+            Token::RParen,
+            Token::Ident("x".to_string()),
             Token::Plus,
-            Box::new(Expr::Num(3.0)),
+            Token::Ident("y".to_string()),
+            Token::Eoe,
+        ];
+        let expected = Stmt::Fn(
+            "foo".to_string(),
+            vec!["x".to_string(), "y".to_string()],
+            Expr::Binary(
+                Box::new(Expr::Var("x".to_string())),
+                Token::Plus,
+                Box::new(Expr::Var("y".to_string())),
+            ),
         );
 
-        let expected = parser.parse().unwrap();
-
-        assert_eq!(expected, expr);
+        let stmt = Parser::new(tokens).parse().unwrap();
+        assert_eq!(stmt, expected);
     }
 
     #[test]
-    fn simple_add_eval() {
-        let expr = Expr::Binary(
-            Box::new(Expr::Num(5.0)),
+    fn test_function_single_param() {
+        let tokens = vec![
+            Token::Fn,
+            Token::Ident("foo".to_string()),
+            Token::LParen,
+            Token::Ident("y".to_string()),
+            Token::RParen,
+            Token::Ident("y".to_string()),
             Token::Plus,
-            Box::new(Expr::Num(1.0)),
+            Token::Num(1.0),
+            Token::Eoe,
+        ];
+        let expected = Stmt::Fn(
+            "foo".to_string(),
+            vec!["y".to_string()],
+            Expr::Binary(
+                Box::new(Expr::Var("y".to_string())),
+                Token::Plus,
+                Box::new(Expr::Num(1.0)),
+            ),
         );
 
-        assert_eq!(expr.eval(), 6.0);
-    }
-
-    #[test]
-    fn test_negative() {
-        let expr = Expr::Binary(
-            Box::new(Expr::Grouping(Box::new(Expr::Binary(
-                Box::new(Expr::Num(5.0)),
-                Token::Minus,
-                Box::new(Expr::Num(3.0)),
-            )))),
-            Token::Mult,
-            Box::new(Expr::Negative(Box::new(Expr::Num(3.0)))),
-        );
-
-        assert_eq!(expr.eval(), -6.0);
+        let stmt = Parser::new(tokens).parse().unwrap();
+        assert_eq!(stmt, expected);
     }
 }
