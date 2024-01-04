@@ -44,41 +44,7 @@ pub enum Expr {
     Exponent(Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
     Func(Func, Box<Expr>),
-    // TODO: Change this to a String
     Var(String),
-}
-
-impl Error for ParseErr {}
-
-impl Display for ParseErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ERROR: {}", self.msg)
-    }
-}
-
-impl Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.format())
-    }
-}
-
-impl Display for Func {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Func::Sin => SIN,
-                Func::Sinh => SINH,
-                Func::Cos => COS,
-                Func::Cosh => COSH,
-                Func::Tan => TAN,
-                Func::Tanh => TANH,
-                Func::Ln => LN,
-                Func::Log(base) => return inner_write(format!("log{}", base), f),
-            }
-        )
-    }
 }
 
 impl Expr {
@@ -276,9 +242,6 @@ impl Parser {
             self.consume(Token::Pipe, "Missing closing pipe")?;
             return Ok(Expr::Abs(expr));
         }
-        // This is still assuming Ident == Func
-        // Needs to start treating ( as call expressions properly
-        // A solution for built in functions might be to treat them as a separate case entirely
         if let Token::Ident(func) = self.peek() {
             let func = func.to_owned();
             self.advance();
@@ -308,6 +271,39 @@ impl Parser {
             return Ok(Expr::Func(func, arg));
         }
         Err(ParseErr::new(self.peek().clone(), "Expected expression"))
+    }
+}
+
+impl Error for ParseErr {}
+
+impl Display for ParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ERROR: {}", self.msg)
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.format())
+    }
+}
+
+impl Display for Func {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Func::Sin => SIN,
+                Func::Sinh => SINH,
+                Func::Cos => COS,
+                Func::Cosh => COSH,
+                Func::Tan => TAN,
+                Func::Tanh => TANH,
+                Func::Ln => LN,
+                Func::Log(base) => return inner_write(format!("log{}", base), f),
+            }
+        )
     }
 }
 

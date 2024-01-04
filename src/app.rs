@@ -75,7 +75,7 @@ impl<'ta> App<'ta> {
                                         if !self.expr_history.contains(&expr) {
                                             self.expr_history.push(expr);
                                         }
-                                        if self.expr_selector == self.interpreter.vars_len() {
+                                        if self.expr_selector == self.expr_history.len() {
                                             self.expr_selector += 1;
                                         }
                                         // Only reset input if we successfully evaluate
