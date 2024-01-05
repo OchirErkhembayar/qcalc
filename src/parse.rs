@@ -124,11 +124,11 @@ impl Parser {
 impl Parser {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
         let res = match self.peek() {
-            Token::Fn => self.function(),
-            _ => Ok(Stmt::Expr(self.expression()?)),
+            Token::Fn => self.function()?,
+            _ => Stmt::Expr(self.expression()?),
         };
         if self.at_end() {
-            res
+            Ok(res)
         } else {
             // A complete expression was parsed but there were more tokens
             Err(ParseErr::new(self.peek().clone(), "Unexpected token"))
@@ -146,8 +146,14 @@ impl Parser {
         if *self.peek() != Token::RParen {
             loop {
                 let next = self.advance();
-                if let Token::Ident(arg) = next {
-                    parameters.push(arg);
+                if let Token::Ident(arg) = &next {
+                    if parameters.contains(arg) {
+                        return Err(ParseErr::new(
+                            next.clone(),
+                            "Function parameters must be unique",
+                        ));
+                    }
+                    parameters.push(arg.clone()); // Not ideal...
                 } else {
                     return Err(ParseErr::new(next, "Expected argument"));
                 }
@@ -463,5 +469,28 @@ mod tests {
 
         let stmt = Parser::new(tokens).parse().unwrap();
         assert_eq!(stmt, expected);
+    }
+
+    #[test]
+    fn test_uniq_params() {
+        let tokens = vec![
+            Token::Fn,
+            Token::Ident("foo".to_string()),
+            Token::LParen,
+            Token::Ident("y".to_string()),
+            Token::Comma,
+            Token::Ident("y".to_string()),
+            Token::RParen,
+            Token::Ident("y".to_string()),
+            Token::Plus,
+            Token::Ident("y".to_string()),
+            Token::Eoe,
+        ];
+        let expected = Err(ParseErr::new(
+            Token::Ident("y".to_string()),
+            "Function parameters must be unique",
+        ));
+
+        assert_eq!(Parser::new(tokens).parse(), expected);
     }
 }
