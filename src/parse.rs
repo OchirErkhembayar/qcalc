@@ -22,6 +22,7 @@ pub struct ParseErr {
     pub msg: &'static str,
 }
 
+// "Built in" functions, separate of user defined functions
 #[derive(Debug, PartialEq, Clone)]
 pub enum Func {
     Sin,
@@ -122,9 +123,15 @@ impl Parser {
 
 impl Parser {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
-        match self.peek() {
+        let res = match self.peek() {
             Token::Fn => self.function(),
             _ => Ok(Stmt::Expr(self.expression()?)),
+        };
+        if self.at_end() {
+            res
+        } else {
+            // A complete expression was parsed but there were more tokens
+            Err(ParseErr::new(self.peek().clone(), "Unexpected token"))
         }
     }
 

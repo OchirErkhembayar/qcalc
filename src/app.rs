@@ -63,6 +63,10 @@ impl<'ta> App<'ta> {
         match self.input_type {
             InputType::Expr => {
                 let input = &self.input.lines()[0];
+                // TODO: Move the tokenizer into the parser so that we're not doing
+                // this unnecessary allocation. Figure out how to handle end of expressions
+                // without the use of semicolons (or implicitly add it in but then if someone
+                // enters one it would terminate their expression which is weird)
                 let mut tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice())
                     .collect::<Vec<_>>();
                 tokens.push(Token::Eoe);
@@ -81,7 +85,7 @@ impl<'ta> App<'ta> {
                                         }
                                         // Only reset input if we successfully evaluate
                                         self.input = textarea(None, None, None);
-                                        self.interpreter.define("q".to_string(), Value::Num(val));
+                                        self.interpreter.define("ans".to_string(), Value::Num(val));
                                         self.output = Some(Ok(val));
                                     }
                                     Err(err) => self.output = Some(Err(Box::new(err))),
@@ -103,12 +107,19 @@ impl<'ta> App<'ta> {
                         Token::Ident(name),
                         "Variable name cannot be empty",
                     ))));
+                    self.input = textarea(None, None, None);
+                    self.input_type = InputType::Expr;
                 } else if !name.chars().all(|c| c.is_ascii_alphabetic()) {
                     self.output = Some(Err(Box::new(ParseErr::new(
                         Token::Ident(name),
                         "Variable names must be letters",
                     ))));
+                    self.input = textarea(None, None, None);
+                    self.input_type = InputType::Expr;
                 } else {
+                    // We know that this is a safe unwrap because the above two cases
+                    // would reset and we can't enter this mode unless we have a
+                    // valid output
                     let output = self.output.as_ref().unwrap().as_ref().unwrap();
                     self.interpreter.define(name, Value::Num(*output));
                     self.input = textarea(None, None, None);
@@ -137,6 +148,7 @@ impl<'ta> App<'ta> {
         self.input = textarea(Some(string), None, None);
     }
 
+    // Set the input mode to typing to saving the output as a variable
     pub fn save_result_input(&mut self) {
         self.input = textarea(
             None,
@@ -184,4 +196,48 @@ fn textarea<'a>(
     textarea.move_cursor(tui_textarea::CursorMove::Down);
     textarea.move_cursor(tui_textarea::CursorMove::End);
     textarea
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input_and_evaluate(app: &mut App, input: &str) {
+        app.input = textarea(Some(input.to_string()), None, None);
+        app.eval();
+    }
+
+    fn assert_output(app: &App, expected: f64) {
+        // Yuck.
+        if let Some(ref output) = app.output {
+            assert_eq!(*output.as_ref().unwrap(), expected);
+        } else {
+            panic!("Not equal");
+        }
+    }
+
+    #[test]
+    fn create_and_call_function() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "fn foo(x, y) x + y");
+        input_and_evaluate(&mut app, "foo (1, 2)");
+        assert!(app.output.is_some_and(|r| r.is_ok_and(|n| n == 3.0)));
+    }
+
+    #[test]
+    fn save_variable() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "12");
+        app.save_result_input();
+        input_and_evaluate(&mut app, "foo");
+        input_and_evaluate(&mut app, "foo * 12");
+        assert_output(&app, 144.0);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "");
+        assert!(app.output.is_some_and(|o| o.is_err()));
+    }
 }

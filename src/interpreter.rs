@@ -73,7 +73,7 @@ impl Interpreter {
 
     fn default_env() -> HashMap<String, Value> {
         HashMap::from_iter([
-            ("p".to_string(), Value::Num(PI)),
+            ("pi".to_string(), Value::Num(PI)),
             ("e".to_string(), Value::Num(E)),
             (
                 "deg".to_string(),
@@ -210,9 +210,9 @@ impl Display for InterpretError {
             f,
             "{}",
             match self {
-                Self::UnknownVariable(c) => format!("Unknown variable {}", c),
-                Self::UnknownFunction(c) => format!("Unknown function {}", c),
-                Self::UnInvokedFunction(c) => format!("Uninvoked function {}", c),
+                Self::UnknownVariable(v) => format!("Unknown variable {}", v),
+                Self::UnknownFunction(f) => format!("Unknown function {}", f),
+                Self::UnInvokedFunction(f) => format!("Uninvoked function {}", f),
                 Self::WrongArity(name, actual, expected) => format!(
                     "Function {} takes {} arguments but {} were provided",
                     name, expected, actual
@@ -279,6 +279,32 @@ mod tests {
             ),
             Ok(144.0),
             HashMap::from_iter([("foo".to_string(), Value::Num(12.0))]),
+        );
+    }
+
+    #[test]
+    fn function_with_closure() {
+        check_with_vars(
+            Expr::Call("foo".to_string(), vec![Expr::Var("bar".to_string())]),
+            Ok(27.0),
+            HashMap::from_iter([
+                (
+                    "foo".to_string(),
+                    Value::Fn(Function::new(
+                        vec!["x".to_string()],
+                        Expr::Binary(
+                            Box::new(Expr::Exponent(
+                                Box::new(Expr::Var("x".to_string())),
+                                Box::new(Expr::Num(2.0)),
+                            )),
+                            Token::Plus,
+                            Box::new(Expr::Var("bar".to_string())),
+                        ),
+                        HashMap::from_iter([("bar".to_string(), Value::Num(2.0))]),
+                    )),
+                ),
+                ("bar".to_string(), Value::Num(5.0)), // The function uses the closure value
+            ]),
         );
     }
 }

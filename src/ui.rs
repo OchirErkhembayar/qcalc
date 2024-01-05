@@ -165,7 +165,7 @@ sin(_rads_)       sinh(_rads_)
 tan(_rads_)       tanh(_rads_)
 log_base_(_arg_)  ln(_arg_)
 
-The result of a successful eval is stored in q
+The result of a successful eval is stored in \"ans\"
 
 Shortcuts
 ---------
