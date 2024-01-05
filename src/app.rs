@@ -1,17 +1,13 @@
-use std::{
-    collections::HashMap,
-    f64::consts::{E, PI},
-};
-
-const CONSTS: [(char, f64); 2] = [('p', PI), ('e', E)];
+use std::error::Error;
 
 use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Padding},
 };
-use tui_textarea::{Input, Key, TextArea};
+use tui_textarea::{Input, TextArea};
 
 use crate::{
+    interpreter::{Interpreter, Stmt, Value},
     parse::{Expr, ParseErr, Parser},
     token::{Token, Tokenizer},
 };
@@ -22,14 +18,15 @@ pub enum InputType {
 }
 
 pub enum Popup {
-    Funcs,
+    Help,
+    Function,
 }
 
 pub struct App<'ta> {
     pub input: TextArea<'ta>,
     pub input_type: InputType,
-    pub output: Option<Result<f64, ParseErr>>,
-    pub stored_vals: HashMap<char, f64>,
+    pub output: Option<Result<f64, Box<dyn Error>>>,
+    pub interpreter: Interpreter,
     pub expr_history: Vec<Expr>,
     pub expr_selector: usize,
     pub should_quit: bool,
@@ -38,12 +35,11 @@ pub struct App<'ta> {
 
 impl<'ta> App<'ta> {
     pub fn new() -> Self {
-        let stored_vals = HashMap::from_iter(CONSTS);
         Self {
             input: textarea(None, None, None),
             input_type: InputType::Expr,
             output: None,
-            stored_vals,
+            interpreter: Interpreter::new(),
             expr_history: Vec::new(),
             expr_selector: 0,
             should_quit: false,
@@ -51,8 +47,8 @@ impl<'ta> App<'ta> {
         }
     }
 
-    pub fn reset_vals(&mut self) {
-        self.stored_vals = HashMap::from_iter(CONSTS);
+    pub fn reset_vars(&mut self) {
+        self.interpreter.reset_vars();
     }
 
     pub fn reset_exprs(&mut self) {
@@ -60,51 +56,77 @@ impl<'ta> App<'ta> {
     }
 
     pub fn input(&mut self, input: Input) {
-        match self.input_type {
-            InputType::Expr => self.input.input(input),
-            InputType::SetVar => {
-                if let Key::Char(c) = input.key {
-                    if c.is_ascii_alphabetic() {
-                        let output = self.output.as_ref().unwrap().as_ref().unwrap();
-                        self.stored_vals.insert(c, *output);
-                    } else {
-                        self.output = Some(Err(ParseErr::new(
-                            Token::Var(c),
-                            "Variable must a single alphabetic character",
-                        )));
-                    }
-                    self.input = textarea(None, None, None);
-                    self.input_type = InputType::Expr;
-                }
-                true
-            }
-        };
+        self.input.input(input);
     }
 
     pub fn eval(&mut self) {
-        let input = &self.input.lines()[0];
-        let mut tokens =
-            Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).collect::<Vec<_>>();
-        tokens.push(Token::Eoe);
-        let res = Parser::new(tokens, self.stored_vals.clone()).parse();
-        let output = match res {
-            Ok(expr) => {
-                let val = expr.eval();
-                if !self.expr_history.contains(&expr) {
-                    self.expr_history.push(expr);
-                }
-                if self.expr_selector == self.stored_vals.len() {
-                    self.expr_selector += 1;
-                }
-                Ok(val)
+        match self.input_type {
+            InputType::Expr => {
+                let input = &self.input.lines()[0];
+                // TODO: Move the tokenizer into the parser so that we're not doing
+                // this unnecessary allocation. Figure out how to handle end of expressions
+                // without the use of semicolons (or implicitly add it in but then if someone
+                // enters one it would terminate their expression which is weird)
+                let mut tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice())
+                    .collect::<Vec<_>>();
+                tokens.push(Token::Eoe);
+                let res = Parser::new(tokens).parse();
+                match res {
+                    Ok(expr) => {
+                        match expr {
+                            Stmt::Expr(expr) => {
+                                match self.interpreter.interpret_expr(&expr) {
+                                    Ok(val) => {
+                                        if !self.expr_history.contains(&expr) {
+                                            self.expr_history.push(expr);
+                                        }
+                                        if self.expr_selector == self.expr_history.len() {
+                                            self.expr_selector += 1;
+                                        }
+                                        // Only reset input if we successfully evaluate
+                                        self.input = textarea(None, None, None);
+                                        self.interpreter.define("ans".to_string(), Value::Num(val));
+                                        self.output = Some(Ok(val));
+                                    }
+                                    Err(err) => self.output = Some(Err(Box::new(err))),
+                                }
+                            }
+                            Stmt::Fn(name, parameters, body) => {
+                                self.interpreter.declare_function(name, parameters, body);
+                                self.input = textarea(None, None, None);
+                            }
+                        }
+                    }
+                    Err(err) => self.output = Some(Err(Box::new(err))),
+                };
             }
-            Err(err) => Err(err),
-        };
-        self.output = Some(output);
-        if let Some(Ok(ans)) = self.output {
-            self.stored_vals.insert('q', ans);
+            InputType::SetVar => {
+                let name = self.input.lines()[0].trim().to_string();
+                if name.is_empty() {
+                    self.output = Some(Err(Box::new(ParseErr::new(
+                        Token::Ident(name),
+                        "Variable name cannot be empty",
+                    ))));
+                    self.input = textarea(None, None, None);
+                    self.input_type = InputType::Expr;
+                } else if !name.chars().all(|c| c.is_ascii_alphabetic()) {
+                    self.output = Some(Err(Box::new(ParseErr::new(
+                        Token::Ident(name),
+                        "Variable names must be letters",
+                    ))));
+                    self.input = textarea(None, None, None);
+                    self.input_type = InputType::Expr;
+                } else {
+                    // We know that this is a safe unwrap because the above two cases
+                    // would reset and we can't enter this mode unless we have a
+                    // valid output
+                    let output = self.output.as_ref().unwrap().as_ref().unwrap();
+                    self.interpreter.define(name, Value::Num(*output));
+                    self.input = textarea(None, None, None);
+                    self.input_type = InputType::Expr;
+                }
+            }
         }
-        self.input = textarea(None, None, None);
     }
 
     // true == select up | false == select down
@@ -126,7 +148,8 @@ impl<'ta> App<'ta> {
         self.input = textarea(Some(string), None, None);
     }
 
-    pub fn save_result(&mut self) {
+    // Set the input mode to typing to saving the output as a variable
+    pub fn save_result_input(&mut self) {
         self.input = textarea(
             None,
             Some("Select one letter"),
@@ -173,4 +196,48 @@ fn textarea<'a>(
     textarea.move_cursor(tui_textarea::CursorMove::Down);
     textarea.move_cursor(tui_textarea::CursorMove::End);
     textarea
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input_and_evaluate(app: &mut App, input: &str) {
+        app.input = textarea(Some(input.to_string()), None, None);
+        app.eval();
+    }
+
+    fn assert_output(app: &App, expected: f64) {
+        // Yuck.
+        if let Some(ref output) = app.output {
+            assert_eq!(*output.as_ref().unwrap(), expected);
+        } else {
+            panic!("Not equal");
+        }
+    }
+
+    #[test]
+    fn create_and_call_function() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "fn foo(x, y) x + y");
+        input_and_evaluate(&mut app, "foo (1, 2)");
+        assert!(app.output.is_some_and(|r| r.is_ok_and(|n| n == 3.0)));
+    }
+
+    #[test]
+    fn save_variable() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "12");
+        app.save_result_input();
+        input_and_evaluate(&mut app, "foo");
+        input_and_evaluate(&mut app, "foo * 12");
+        assert_output(&app, 144.0);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let mut app = App::new();
+        input_and_evaluate(&mut app, "");
+        assert!(app.output.is_some_and(|o| o.is_err()));
+    }
 }

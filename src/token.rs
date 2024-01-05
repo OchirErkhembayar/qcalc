@@ -1,11 +1,11 @@
-use crate::{inner_write, parse::FUNCS};
+use crate::inner_write;
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Num(f64),
-    Var(char), // Change this to a string and combine functions and vars into one table and
-    // dynamimcally use them
-    Func(&'static str),
+    Fn,
+    Comma,
+    Ident(String),
     Pipe,
     Mod,
     Div,
@@ -22,8 +22,9 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Num(num) => inner_write(num, f),
-            Token::Var(var) => inner_write(var, f),
-            Token::Func(func) => inner_write(func, f),
+            Token::Fn => inner_write("fn", f),
+            Token::Comma => inner_write(',', f),
+            Token::Ident(ident) => inner_write(ident, f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
@@ -38,6 +39,7 @@ impl std::fmt::Display for Token {
     }
 }
 
+#[derive(Debug)]
 pub struct Tokenizer<'a> {
     input: &'a [char],
     index: usize,
@@ -53,23 +55,35 @@ impl<'a> Iterator for Tokenizer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next) = self.input.get(self.index) {
-            self.index += 1;
-            let token = match next {
-                ' ' => {
-                    return self.next();
+        let next = self.input.get(self.index)?;
+        self.index += 1;
+        Some(match next {
+            ' ' => {
+                return self.next();
+            }
+            ',' => Token::Comma,
+            '|' => Token::Pipe,
+            '/' => Token::Div,
+            '+' => Token::Plus,
+            '-' => Token::Minus,
+            '%' => Token::Mod,
+            '*' => Token::Mult,
+            '(' => Token::LParen,
+            ')' => Token::RParen,
+            '^' => Token::Power,
+            '0'..='9' => {
+                let mut num = next.to_string();
+                while self
+                    .input
+                    .get(self.index)
+                    .is_some_and(|c| c.is_ascii_digit())
+                {
+                    num.push(self.input[self.index]);
+                    self.index += 1;
                 }
-                '|' => Token::Pipe,
-                '/' => Token::Div,
-                '+' => Token::Plus,
-                '-' => Token::Minus,
-                '%' => Token::Mod,
-                '*' => Token::Mult,
-                '(' => Token::LParen,
-                ')' => Token::RParen,
-                '^' => Token::Power,
-                '0'..='9' => {
-                    let mut num = next.to_string();
+                if self.input.get(self.index).is_some_and(|c| *c == '.') {
+                    num.push(self.input[self.index]);
+                    self.index += 1;
                     while self
                         .input
                         .get(self.index)
@@ -78,51 +92,29 @@ impl<'a> Iterator for Tokenizer<'a> {
                         num.push(self.input[self.index]);
                         self.index += 1;
                     }
-                    if self.input.get(self.index).is_some_and(|c| *c == '.') {
-                        num.push(self.input[self.index]);
-                        self.index += 1;
-                        while self
-                            .input
-                            .get(self.index)
-                            .is_some_and(|c| c.is_ascii_digit())
-                        {
-                            num.push(self.input[self.index]);
-                            self.index += 1;
-                        }
-                    }
-                    Token::Num(num.parse().unwrap())
                 }
-                'A'..='Z' | 'a'..='z' => {
-                    let mut func = next.to_string();
-                    while self
-                        .input
-                        .get(self.index)
-                        .is_some_and(|c| c.is_ascii_alphabetic())
-                    {
-                        func.push(self.input[self.index]);
-                        self.index += 1;
-                    }
-                    if func.len() == 1 {
-                        Token::Var(*next)
-                    } else {
-                        // Tokenizer shouldn't really be doing this but
-                        // I don't want to have `String` in the enum because
-                        // we'll lose the `Copy` trait.
-                        let name = if let Some(pos) = FUNCS.iter().position(|f| *f == func.as_str())
-                        {
-                            FUNCS[pos]
-                        } else {
-                            "unknown"
-                        };
-                        Token::Func(name)
-                    }
+                Token::Num(num.parse().unwrap())
+            }
+            'A'..='Z' | 'a'..='z' => {
+                let mut func = next.to_string();
+                while self
+                    .input
+                    .get(self.index)
+                    .is_some_and(|c| c.is_ascii_alphabetic())
+                {
+                    func.push(self.input[self.index]);
+                    self.index += 1;
                 }
-                _ => return None, // Handle wrong tokens a different way
-            };
-            Some(token)
-        } else {
-            None
-        }
+                if func == "fn" {
+                    Token::Fn
+                } else {
+                    Token::Ident(func)
+                }
+            }
+            _ => return None, // Unknown chars just end the parsing. Not sure if good or
+                              // bad... In any case it's probably a bit confusing for the user. Definitely
+                              // confused me lol.
+        })
     }
 }
 
@@ -170,12 +162,5 @@ mod tests {
                 Token::Num(10.0)
             ]
         );
-    }
-
-    #[test]
-    fn test_var() {
-        let str = "a + 3".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
-        assert_eq!(tokens, vec![Token::Var('a'), Token::Plus, Token::Num(3.0)]);
     }
 }
