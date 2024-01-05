@@ -37,7 +37,7 @@ pub struct Function {
     body: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum InterpretError {
     UnknownVariable(String),
     UnknownFunction(String),
@@ -218,5 +218,51 @@ impl Display for Value {
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}) {}", self.parameters.join(", "), self.body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check(expr: Expr, expected: Result<f64, InterpretError>) {
+        let interpreter = Interpreter::new();
+        let res = interpreter.interpret_expr(&expr);
+        assert_eq!(res, expected);
+    }
+
+    fn check_with_vars(
+        expr: Expr,
+        expected: Result<f64, InterpretError>,
+        env: HashMap<String, Value>,
+    ) {
+        let interpreter = Interpreter::with_env(env);
+        let res = interpreter.interpret_expr(&expr);
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn simple_add() {
+        check(
+            Expr::Binary(
+                Box::new(Expr::Num(1.1)),
+                Token::Plus,
+                Box::new(Expr::Num(5.0)),
+            ),
+            Ok(6.1),
+        );
+    }
+
+    #[test]
+    fn simple_variable() {
+        check_with_vars(
+            Expr::Binary(
+                Box::new(Expr::Num(12.0)),
+                Token::Mult,
+                Box::new(Expr::Var("foo".to_string())),
+            ),
+            Ok(144.0),
+            HashMap::from_iter([("foo".to_string(), Value::Num(12.0))]),
+        );
     }
 }
