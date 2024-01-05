@@ -70,6 +70,9 @@ fn update(app: &mut App, key_event: KeyEvent) {
             KeyCode::Char('h') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Help);
             }
+            KeyCode::Char('f') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.popup = Some(Popup::Function);
+            }
             KeyCode::Char('x') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.remove_expr();
             }

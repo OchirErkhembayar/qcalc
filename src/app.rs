@@ -19,6 +19,7 @@ pub enum InputType {
 
 pub enum Popup {
     Help,
+    Function,
 }
 
 pub struct App<'ta> {

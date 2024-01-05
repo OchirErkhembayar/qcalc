@@ -123,26 +123,37 @@ pub fn render(app: &mut App, f: &mut Frame) {
     }
 
     if let Some(popup) = &app.popup {
+        let mut render_popup = |message: &str| {
+            let popup_layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(15),
+                    Constraint::Percentage(70),
+                    Constraint::Percentage(15),
+                ])
+                .split(f.size());
+
+            let area = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(80),
+                    Constraint::Percentage(10),
+                ])
+                .split(popup_layout[1])[1];
+            let message_block = Block::default()
+                .title("Help")
+                .borders(Borders::ALL)
+                .padding(Padding::horizontal(3))
+                .style(Style::default().fg(Color::White));
+            let message_text = Paragraph::new(message)
+                .wrap(Wrap::default())
+                .block(message_block);
+            f.render_widget(Clear, area);
+            f.render_widget(message_text, area);
+        };
         match popup {
             Popup::Help => {
-                let popup_layout = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Percentage(15),
-                        Constraint::Percentage(70),
-                        Constraint::Percentage(15),
-                    ])
-                    .split(f.size());
-
-                let area = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Percentage(10),
-                        Constraint::Percentage(80),
-                        Constraint::Percentage(10),
-                    ])
-                    .split(popup_layout[1])[1];
-
                 let message = "
 Available Functions
 -------------------
@@ -163,16 +174,32 @@ Shortcuts
 (Ctrl e/v) Reset exprs/vars
 (Ctrl x) Delete selected expression
 ";
-                let message_block = Block::default()
-                    .title("Help")
-                    .borders(Borders::ALL)
-                    .padding(Padding::horizontal(3))
-                    .style(Style::default().fg(Color::White));
-                let message_text = Paragraph::new(message)
-                    .wrap(Wrap::default())
-                    .block(message_block);
-                f.render_widget(Clear, area);
-                f.render_widget(message_text, area);
+                render_popup(message);
+            }
+            Popup::Function => {
+                let message = "
+Custom Functions
+----------------
+Defining: fn [NAME]([ARG]..) [BODY]
+- NAME: Name of the function
+- ARGS: Parameter (comma separated identifier)
+- BODY: The expression
+
+Example: fn myfun(a, b) a + b^2
+
+Calling: [NAME]([ARG]...)
+- NAME: Name of the function
+- ARG: Argument (comma separated expression)
+
+Examples:
+- myfun(10)
+- myfun(cos(p))
+
+If existing functions / variables are used in a custom function
+then a snapshot of them is taken such that even if they are changed
+or redefined, the custom function will use the old values
+";
+                render_popup(message);
             }
         }
     }
@@ -186,7 +213,7 @@ Shortcuts
         let message = if app.popup.is_some() {
             "(Esc) Back"
         } else {
-            "(Esc) Quit | (Ctrl h) Help"
+            "(Esc) Quit | (Ctrl h) Help | (Ctrl f) Custom fn help"
         };
         let help = Paragraph::new(Text::styled(
             message,

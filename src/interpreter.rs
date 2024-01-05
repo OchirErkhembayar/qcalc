@@ -75,6 +75,22 @@ impl Interpreter {
         HashMap::from_iter([
             ("p".to_string(), Value::Num(PI)),
             ("e".to_string(), Value::Num(E)),
+            (
+                "deg".to_string(),
+                Value::Fn(Function::new(
+                    vec!["rads".to_string()],
+                    Expr::Binary(
+                        Box::new(Expr::Var("rads".to_string())),
+                        Token::Mult,
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Num(180.0)),
+                            Token::Div,
+                            Box::new(Expr::Num(PI)),
+                        )),
+                    ),
+                    HashMap::new(),
+                )),
+            ),
         ])
     }
 
