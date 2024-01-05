@@ -6,8 +6,8 @@
     clippy::needless_lifetimes
 )]
 
-use color_eyre::Result;
+use std::error::Error;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     qcalc::run()
 }

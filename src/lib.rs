@@ -1,7 +1,6 @@
-use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::CrosstermBackend, Terminal};
-use std::io;
+use std::{error::Error, io};
 
 use app::{App, Popup};
 use event::{Event, EventHandler};
@@ -15,7 +14,7 @@ mod token;
 mod tui;
 mod ui;
 
-pub fn run() -> Result<()> {
+pub fn run() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new(
         Terminal::new(CrosstermBackend::new(io::stdout()))?,
         EventHandler::new(250),

@@ -1,10 +1,10 @@
 use std::{
+    error::Error,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
 
-use color_eyre::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 
 /// Terminal events.
@@ -68,7 +68,7 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self) -> Result<Event> {
+    pub fn next(&self) -> Result<Event, Box<dyn Error>> {
         Ok(self.receiver.recv()?)
     }
 }

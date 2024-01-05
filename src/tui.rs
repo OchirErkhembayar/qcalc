@@ -1,6 +1,5 @@
-use std::{io, panic};
+use std::{error::Error, io, panic};
 
-use color_eyre::Result;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
@@ -20,7 +19,7 @@ impl Tui {
         Self { terminal, events }
     }
 
-    pub fn enter(&mut self) -> Result<()> {
+    pub fn enter(&mut self) -> Result<(), Box<dyn Error>> {
         terminal::enable_raw_mode()?;
         crossterm::execute!(io::stderr(), EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -35,18 +34,18 @@ impl Tui {
         Ok(())
     }
 
-    pub fn draw(&mut self, app: &mut App) -> Result<()> {
+    pub fn draw(&mut self, app: &mut App) -> Result<(), Box<dyn Error>> {
         self.terminal.draw(|frame| ui::render(app, frame))?;
         Ok(())
     }
 
-    fn reset() -> Result<()> {
+    fn reset() -> Result<(), Box<dyn Error>> {
         terminal::disable_raw_mode()?;
         crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture)?;
         Ok(())
     }
 
-    pub fn exit(&mut self) -> Result<()> {
+    pub fn exit(&mut self) -> Result<(), Box<dyn Error>> {
         Self::reset()?;
         self.terminal.show_cursor()?;
         Ok(())
