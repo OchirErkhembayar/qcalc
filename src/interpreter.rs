@@ -91,6 +91,22 @@ impl Interpreter {
                     HashMap::new(),
                 )),
             ),
+            (
+                "rads".to_string(),
+                Value::Fn(Function::new(
+                    vec!["degs".to_string()],
+                    Expr::Binary(
+                        Box::new(Expr::Var("degs".to_string())),
+                        Token::Mult,
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Num(PI)),
+                            Token::Div,
+                            Box::new(Expr::Num(180.0)),
+                        )),
+                    ),
+                    HashMap::new(),
+                )),
+            ),
         ])
     }
 
