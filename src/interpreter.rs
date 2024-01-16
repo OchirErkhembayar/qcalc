@@ -29,6 +29,19 @@ pub enum Value {
     Fn(Function),
     Num(f64),
 }
+impl Value {
+    pub fn to_input(&self, name: &str) -> String {
+        match self {
+            Self::Num(num) => format!("let {} = {}", name, num),
+            Self::Fn(func) => format!(
+                "fn {}({}) {}",
+                name,
+                func.parameters.join(", "),
+                func.body.format()
+            ),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Function {

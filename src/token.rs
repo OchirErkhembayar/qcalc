@@ -53,6 +53,12 @@ impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a [char]) -> Self {
         Self { input, index: 0 }
     }
+
+    pub fn into_tokens(self) -> Vec<Token> {
+        let mut tokens = self.collect::<Vec<_>>();
+        tokens.push(Token::Eoe);
+        tokens
+    }
 }
 
 impl<'a> Iterator for Tokenizer<'a> {

@@ -6,6 +6,8 @@ use app::{App, Popup};
 use event::{Event, EventHandler};
 use tui::Tui;
 
+const RC_PATH: &str = ".qcalcrc";
+
 mod app;
 mod event;
 mod interpreter;
@@ -20,7 +22,9 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         EventHandler::new(250),
     );
     tui.enter().expect("Failed to initialise TUI");
-    let mut app = App::new();
+    let mut rc_file = dirs_next::home_dir().expect("Could not find home directory");
+    rc_file.push(RC_PATH);
+    let mut app = App::new(rc_file);
 
     while !app.should_quit {
         tui.draw(&mut app)?;
@@ -56,9 +60,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
                 app.input_select(false);
             }
             KeyCode::Char('s') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                if app.output.as_ref().is_some_and(|o| o.is_ok()) {
-                    app.save_result_input();
-                }
+                let _ = app.update_rc();
             }
             KeyCode::Char('e') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.reset_exprs();

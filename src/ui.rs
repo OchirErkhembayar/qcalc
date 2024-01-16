@@ -174,7 +174,7 @@ Saving expressions into variables in one line: \"let x = 5 * 20\"
 Shortcuts
 ---------
 (Ctrl r) Round result to the nearest integer
-(Ctrl s) Store result
+(Ctrl s) Save current values and functions
 (Ctrl e/v) Reset exprs/vars
 (Ctrl x) Delete selected expression
 ";
