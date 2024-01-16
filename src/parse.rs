@@ -139,6 +139,7 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
         let res = match self.peek() {
             Token::Fn => self.function()?,
+            Token::Let => self.assign()?,
             _ => Stmt::Expr(self.expression()?),
         };
         if self.at_end() {
@@ -180,6 +181,17 @@ impl Parser {
         self.consume(Token::RParen, "Missing closing parentheses")?;
         let expr = self.expression()?;
         Ok(Stmt::Fn(name, parameters, expr))
+    }
+
+    fn assign(&mut self) -> Result<Stmt, ParseErr> {
+        self.advance();
+        let name = match self.advance() {
+            Token::Ident(name) => name,
+            token => return Err(ParseErr::new(token, "Missing function name")),
+        };
+        self.consume(Token::Eq, "Expected =")?;
+        let expr = self.expression()?;
+        Ok(Stmt::Assign(name, expr))
     }
 
     fn expression(&mut self) -> Result<Expr, ParseErr> {
@@ -520,5 +532,19 @@ mod tests {
         ));
 
         assert_eq!(Parser::new(tokens).parse(), expected);
+    }
+
+    #[test]
+    fn test_assignment() {
+        let tokens = vec![
+            Token::Let,
+            Token::Ident("foo".to_string()),
+            Token::Eq,
+            Token::Num(50.0),
+            Token::Eoe,
+        ];
+        let expected = Stmt::Assign("foo".to_string(), Expr::Num(50.0));
+
+        assert_eq!(Parser::new(tokens).parse(), Ok(expected));
     }
 }

@@ -95,6 +95,24 @@ impl<'ta> App<'ta> {
                                 self.interpreter.declare_function(name, parameters, body);
                                 self.input = textarea(None, None, None);
                             }
+                            Stmt::Assign(name, expr) => {
+                                match self.interpreter.interpret_expr(&expr) {
+                                    Ok(val) => {
+                                        if !self.expr_history.contains(&expr) {
+                                            self.expr_history.push(expr);
+                                        }
+                                        if self.expr_selector == self.expr_history.len() {
+                                            self.expr_selector += 1;
+                                        }
+                                        // Only reset input if we successfully evaluate
+                                        self.input = textarea(None, None, None);
+                                        self.interpreter.define("ans".to_string(), Value::Num(val));
+                                        self.output = Some(Ok(val));
+                                        self.interpreter.define(name, Value::Num(val));
+                                    }
+                                    Err(err) => self.output = Some(Err(Box::new(err))),
+                                }
+                            }
                         }
                     }
                     Err(err) => self.output = Some(Err(Box::new(err))),
@@ -244,11 +262,25 @@ mod tests {
     #[test]
     fn test_built_in_fns() {
         let mut app = App::new();
-        let input_and_ans = [("sq(2)", 4.0), ("sqrt(16)", 4.0), ("cube(2)", 8.0), ("cbrt(8)", 2.0)];
+        let input_and_ans = [
+            ("sq(2)", 4.0),
+            ("sqrt(16)", 4.0),
+            ("cube(2)", 8.0),
+            ("cbrt(8)", 2.0),
+        ];
 
         input_and_ans.iter().for_each(|(input, exp)| {
             input_and_evaluate(&mut app, input);
             assert_output(&app, *exp);
         });
+    }
+
+    #[test]
+    fn test_assignment() {
+        let mut app = App::new();
+
+        input_and_evaluate(&mut app, "let foo = sqrt(144)");
+        input_and_evaluate(&mut app, "foo");
+        assert_output(&app, 12.0);
     }
 }

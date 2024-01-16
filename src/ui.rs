@@ -127,9 +127,9 @@ pub fn render(app: &mut App, f: &mut Frame) {
             let popup_layout = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Percentage(15),
-                    Constraint::Percentage(70),
-                    Constraint::Percentage(15),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(80),
+                    Constraint::Percentage(10),
                 ])
                 .split(f.size());
 
@@ -166,7 +166,10 @@ tan(_rads_)       tanh(_rads_)  cube(__arg__)
 log_base_(_arg_)  ln(_arg_)     cbrt(__arg__)
 degs(_rads_)      rads(_degs_)  round(__arg__)
 
-The result of a successful eval is stored in \"ans\"
+Saving Variables
+----------------
+The result of a successful eval is stored in the \"ans\" variable
+Saving expressions into variables in one line: \"let x = 5 * 20\"
 
 Shortcuts
 ---------

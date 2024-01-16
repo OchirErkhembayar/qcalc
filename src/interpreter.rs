@@ -21,6 +21,7 @@ pub struct Interpreter {
 pub enum Stmt {
     Expr(Expr),
     Fn(String, Vec<String>, Expr),
+    Assign(String, Expr),
 }
 
 #[derive(Debug, Clone)]
