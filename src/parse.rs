@@ -9,6 +9,13 @@ const TAN: &str = "tan";
 const TANH: &str = "tanh";
 const LOG: &str = "log";
 const LN: &str = "ln";
+const DEGS: &str = "degs";
+const RADS: &str = "rads";
+const SQRT: &str = "sqrt";
+const SQ: &str = "sq";
+const CBRT: &str = "cbrt";
+const CUBE: &str = "cube";
+const ROUND: &str = "round";
 
 #[derive(Debug)]
 pub struct Parser {
@@ -33,6 +40,13 @@ pub enum Func {
     Tanh,
     Ln,
     Log(f64),
+    Degs,
+    Rads,
+    Sq,
+    Sqrt,
+    Cube,
+    Cbrt,
+    Round,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -276,6 +290,13 @@ impl Parser {
                         ));
                     }
                 }
+                DEGS => Func::Degs,
+                RADS => Func::Rads,
+                SQ => Func::Sq,
+                SQRT => Func::Sqrt,
+                CUBE => Func::Cube,
+                CBRT => Func::Cbrt,
+                ROUND => Func::Round,
                 _ => return Ok(Expr::Var(func)),
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -315,6 +336,13 @@ impl Display for Func {
                 Func::Tanh => TANH,
                 Func::Ln => LN,
                 Func::Log(base) => return inner_write(format!("log{}", base), f),
+                Func::Degs => DEGS,
+                Func::Rads => RADS,
+                Func::Sq => SQ,
+                Func::Sqrt => SQRT,
+                Func::Cube => CUBE,
+                Func::Cbrt => CBRT,
+                Func::Round => ROUND,
             }
         )
     }

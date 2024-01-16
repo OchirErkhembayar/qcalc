@@ -160,10 +160,11 @@ Available Functions
 _arg_ should be replaced by an expression eg. ln(2)
 _rads_ indicates that the argument should be in radians eg. cos(p)
 
-cos(_rads_)       cosh(_rads_)
-sin(_rads_)       sinh(_rads_)
-tan(_rads_)       tanh(_rads_)
-log_base_(_arg_)  ln(_arg_)
+cos(_rads_)       cosh(_rads_)  sq(__arg__)
+sin(_rads_)       sinh(_rads_)  sqrt(__arg__)
+tan(_rads_)       tanh(_rads_)  cube(__arg__)
+log_base_(_arg_)  ln(_arg_)     cbrt(__arg__)
+degs(_rads_)      rads(_degs_)  round(__arg__)
 
 The result of a successful eval is stored in \"ans\"
 

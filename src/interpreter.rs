@@ -75,38 +75,6 @@ impl Interpreter {
         HashMap::from_iter([
             ("pi".to_string(), Value::Num(PI)),
             ("e".to_string(), Value::Num(E)),
-            (
-                "deg".to_string(),
-                Value::Fn(Function::new(
-                    vec!["rads".to_string()],
-                    Expr::Binary(
-                        Box::new(Expr::Var("rads".to_string())),
-                        Token::Mult,
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Num(180.0)),
-                            Token::Div,
-                            Box::new(Expr::Num(PI)),
-                        )),
-                    ),
-                    HashMap::new(),
-                )),
-            ),
-            (
-                "rads".to_string(),
-                Value::Fn(Function::new(
-                    vec!["degs".to_string()],
-                    Expr::Binary(
-                        Box::new(Expr::Var("degs".to_string())),
-                        Token::Mult,
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Num(PI)),
-                            Token::Div,
-                            Box::new(Expr::Num(180.0)),
-                        )),
-                    ),
-                    HashMap::new(),
-                )),
-            ),
         ])
     }
 
@@ -183,10 +151,24 @@ impl Interpreter {
                     Func::Tanh => arg.tanh(),
                     Func::Ln => arg.ln(),
                     Func::Log(b) => arg.log(*b),
+                    Func::Degs => arg.to_degrees(),
+                    Func::Rads => arg.to_radians(),
+                    Func::Sq => arg.powi(2),
+                    Func::Sqrt => arg.sqrt(),
+                    Func::Cube => arg.powi(3),
+                    Func::Cbrt => arg.cbrt(),
+                    Func::Round => arg.round(),
                 };
                 Ok(val)
             }
         }
+        .map(|n| {
+            if (n.round() - n).abs() < 1e-10 {
+                n.round()
+            } else {
+                n
+            }
+        })
     }
 
     pub fn reset_vars(&mut self) {

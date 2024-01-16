@@ -240,4 +240,15 @@ mod tests {
         input_and_evaluate(&mut app, "");
         assert!(app.output.is_some_and(|o| o.is_err()));
     }
+
+    #[test]
+    fn test_built_in_fns() {
+        let mut app = App::new();
+        let input_and_ans = [("sq(2)", 4.0), ("sqrt(16)", 4.0), ("cube(2)", 8.0), ("cbrt(8)", 2.0)];
+
+        input_and_ans.iter().for_each(|(input, exp)| {
+            input_and_evaluate(&mut app, input);
+            assert_output(&app, *exp);
+        });
+    }
 }
