@@ -101,6 +101,7 @@ impl<'ta> App<'ta> {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&self.rc_file)
             .map_err(|e| format!("ERROR: Failed to open rc file, {}", e))?;
         file.write_all(commands.as_bytes())
