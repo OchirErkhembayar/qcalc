@@ -60,7 +60,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
                 app.input_select(false);
             }
             KeyCode::Char('s') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                let _ = app.update_rc();
+                app.update_rc();
             }
             KeyCode::Char('e') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.reset_exprs();
@@ -76,9 +76,6 @@ fn update(app: &mut App, key_event: KeyEvent) {
             }
             KeyCode::Char('x') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.remove_expr();
-            }
-            KeyCode::Char('r') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                app.round_result();
             }
             KeyCode::Enter => app.eval(),
             _ => app.input(key_event.into()),

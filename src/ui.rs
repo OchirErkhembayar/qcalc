@@ -100,16 +100,16 @@ pub fn render(app: &mut App, f: &mut Frame) {
     // Result + Input
     {
         let result = {
-            let (content, color, border_color) = match &app.output {
-                Some(output) => match output {
-                    Ok(num) => (format!("Result: {}", num), Color::Green, Color::Green),
-                    Err(err) => (format!("{}", err), Color::Red, Color::Red),
-                },
-                None => (
-                    "Press enter to evaluate expression".to_string(),
+            let (content, color, border_color) = if let Some(msg) = &app.err {
+                (format!("ERROR: {}", msg), Color::Red, Color::Red)
+            } else if let Some(msg) = &app.output {
+                (format!("Result: {}", msg), Color::Green, Color::Green)
+            } else {
+                (
+                    "Press enter to evaluate expression".to_string(), // Could use lazy_static here
                     Color::LightYellow,
                     Color::White,
-                ),
+                )
             };
             let output_block = Block::default()
                 .borders(Borders::ALL)
@@ -173,7 +173,6 @@ Saving expressions into variables in one line: \"let x = 5 * 20\"
 
 Shortcuts
 ---------
-(Ctrl r) Round result to the nearest integer
 (Ctrl s) Save current values and functions
 (Ctrl e/v) Reset exprs/vars
 (Ctrl x) Delete selected expression

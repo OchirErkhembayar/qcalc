@@ -324,7 +324,7 @@ impl Error for ParseErr {}
 
 impl Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ERROR: {}", self.msg)
+        write!(f, "{}", self.msg)
     }
 }
 

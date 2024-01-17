@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fs::{File, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
@@ -26,7 +25,8 @@ pub enum Popup {
 // Check if that exists in the ui before rendering the output
 pub struct App<'ta> {
     pub input: TextArea<'ta>,
-    pub output: Option<Result<f64, Box<dyn Error>>>,
+    pub output: Option<String>,
+    pub err: Option<String>,
     pub interpreter: Interpreter,
     pub expr_history: Vec<Expr>,
     pub expr_selector: usize,
@@ -48,6 +48,7 @@ impl<'ta> App<'ta> {
         let mut app = Self {
             input: textarea(None, None, None),
             output: None,
+            err: None,
             interpreter: Interpreter::new(),
             expr_history: Vec::new(),
             expr_selector: 0,
@@ -87,7 +88,7 @@ impl<'ta> App<'ta> {
         });
     }
 
-    pub fn update_rc(&self) -> Result<(), Box<dyn Error>> {
+    pub fn update_rc(&mut self) {
         let commands = self
             .interpreter
             .env()
@@ -97,16 +98,25 @@ impl<'ta> App<'ta> {
                 acc
             })
             .join("\n");
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open(&self.rc_file)
-            .map_err(|e| format!("ERROR: Failed to open rc file, {}", e))?;
-        file.write_all(commands.as_bytes())
-            .map_err(|e| format!("ERROR: Failed to open rc file, {}", e))?;
-        Ok(())
+            .map_err(|e| format!("ERROR: Failed to open rc file, {}", e));
+        match file {
+            Ok(mut file) => {
+                match file
+                    .write_all(commands.as_bytes())
+                    .map_err(|e| format!("ERROR: Failed to write to rc file, {}", e))
+                {
+                    Ok(_) => self.set_output("Success".to_string()),
+                    Err(err) => self.set_err(err.to_string()),
+                }
+            }
+            Err(err) => self.set_err(err.to_string()),
+        }
     }
 
     pub fn reset_vars(&mut self) {
@@ -144,9 +154,10 @@ impl<'ta> App<'ta> {
                                 // Only reset input if we successfully evaluate
                                 self.input = textarea(None, None, None);
                                 self.interpreter.define("ans".to_string(), Value::Num(val));
-                                self.output = Some(Ok(val));
+                                self.err = None;
+                                self.output = Some(val.to_string());
                             }
-                            Err(err) => self.output = Some(Err(Box::new(err))),
+                            Err(err) => self.err = Some(err.to_string()),
                         }
                     }
                     Stmt::Fn(name, parameters, body) => {
@@ -165,16 +176,26 @@ impl<'ta> App<'ta> {
                                 // Only reset input if we successfully evaluate
                                 self.input = textarea(None, None, None);
                                 self.interpreter.define("ans".to_string(), Value::Num(val));
-                                self.output = Some(Ok(val));
+                                self.set_output(val.to_string());
                                 self.interpreter.define(name, Value::Num(val));
                             }
-                            Err(err) => self.output = Some(Err(Box::new(err))),
+                            Err(err) => self.output = Some(err.to_string()),
                         }
                     }
                 }
             }
-            Err(err) => self.output = Some(Err(Box::new(err))),
+            Err(err) => self.set_err(err.to_string()),
         };
+    }
+
+    fn set_output(&mut self, msg: String) {
+        self.output = Some(msg);
+        self.err = None;
+    }
+
+    fn set_err(&mut self, msg: String) {
+        self.err = Some(msg);
+        self.output = None;
     }
 
     // true == select up | false == select down
@@ -202,12 +223,6 @@ impl<'ta> App<'ta> {
             if !self.expr_history.is_empty() && self.expr_history.len() <= self.expr_selector {
                 self.expr_selector -= 1;
             }
-        }
-    }
-
-    pub fn round_result(&mut self) {
-        if let Some(Ok(output)) = &mut self.output {
-            *output = output.round();
         }
     }
 }
