@@ -8,6 +8,19 @@
 
 use std::error::Error;
 
+use qcalc::eval;
+
 fn main() -> Result<(), Box<dyn Error>> {
-    qcalc::run()
+    let mut args = std::env::args();
+    args.next();
+    let inputs = args.collect::<Vec<_>>();
+    if inputs.is_empty() {
+        qcalc::tui()
+    } else {
+        for input in inputs.iter() {
+            let res = eval(&input)?;
+            println!("{}", res);
+        }
+        Ok(())
+    }
 }

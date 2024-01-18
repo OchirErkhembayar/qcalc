@@ -1,6 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use interpreter::Interpreter;
+use parse::Parser;
 use ratatui::{prelude::CrosstermBackend, Terminal};
 use std::{error::Error, io};
+use token::Tokenizer;
 
 use app::{App, Popup};
 use event::{Event, EventHandler};
@@ -16,7 +19,7 @@ mod token;
 mod tui;
 mod ui;
 
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn tui() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new(
         Terminal::new(CrosstermBackend::new(io::stdout()))?,
         EventHandler::new(250),
@@ -39,6 +42,17 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     tui.exit()?;
     Ok(())
+}
+
+pub fn eval(input: &str) -> Result<f64, Box<dyn Error>> {
+    let tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).into_tokens();
+    let stmt = Parser::new(tokens).parse()?;
+    let res = Interpreter::new().interpret(stmt)?;
+    if let Some(ans) = res {
+        Ok(ans)
+    } else {
+        Ok(1_f64)
+    }
 }
 
 fn update(app: &mut App, key_event: KeyEvent) {
