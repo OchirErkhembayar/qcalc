@@ -2,7 +2,6 @@
     clippy::perf,
     clippy::complexity,
     clippy::print_stderr,
-    clippy::print_stdout,
     clippy::needless_lifetimes
 )]
 
@@ -18,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         qcalc::tui()
     } else {
         for input in inputs.iter() {
-            let res = eval(&input)?;
+            let res = eval(input)?;
             println!("{}", res);
         }
         Ok(())
