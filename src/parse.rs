@@ -140,6 +140,7 @@ impl Parser {
         let res = match self.peek() {
             Token::Fn => self.function()?,
             Token::Let => self.assign()?,
+            Token::Undef => self.undef()?,
             _ => Stmt::Expr(self.expression()?),
         };
         if self.at_end() {
@@ -181,6 +182,34 @@ impl Parser {
         self.consume(Token::RParen, "Missing closing parentheses")?;
         let expr = self.expression()?;
         Ok(Stmt::Fn(name, parameters, expr))
+    }
+
+    fn undef(&mut self) -> Result<Stmt, ParseErr> {
+        self.advance();
+        self.consume(Token::LParen, "Missing opening parentheses")?;
+        let mut parameters = Vec::new();
+        if *self.peek() != Token::RParen {
+            loop {
+                let next = self.advance();
+                if let Token::Ident(arg) = &next {
+                    if parameters.contains(arg) {
+                        return Err(ParseErr::new(
+                            next.clone(),
+                            "Function parameters must be unique",
+                        ));
+                    }
+                    parameters.push(arg.clone()); // Not ideal...
+                } else {
+                    return Err(ParseErr::new(next, "Expected argument"));
+                }
+                if *self.peek() != Token::Comma {
+                    break;
+                }
+                self.advance();
+            }
+        }
+        self.consume(Token::RParen, "Missing closing parentheses")?;
+        Ok(Stmt::Undef(parameters))
     }
 
     fn assign(&mut self) -> Result<Stmt, ParseErr> {
@@ -324,7 +353,7 @@ impl Error for ParseErr {}
 
 impl Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.msg)
+        write!(f, "{}, got: {}", self.msg, self.token)
     }
 }
 

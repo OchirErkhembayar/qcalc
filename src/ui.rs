@@ -181,7 +181,7 @@ Shortcuts
             }
             Popup::Function => {
                 let message = "
-Custom Functions
+Defining Functions / Variables
 ----------------
 Defining: fn [NAME]([ARG]..) [BODY]
 - NAME: Name of the function
@@ -197,6 +197,8 @@ Calling: [NAME]([ARG]...)
 Examples:
 - myfun(10)
 - myfun(cos(p))
+
+Undefining variables and functions: undef([ARG]..)
 
 If existing functions / variables are used in a custom function
 then a snapshot of them is taken such that even if they are changed

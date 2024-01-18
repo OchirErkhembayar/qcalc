@@ -138,50 +138,24 @@ impl<'ta> App<'ta> {
         // without the use of semicolons (or implicitly add it in but then if someone
         // enters one it would terminate their expression which is weird)
         let tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).into_tokens();
-        let res = Parser::new(tokens).parse();
-        match res {
-            Ok(expr) => {
-                match expr {
-                    Stmt::Expr(expr) => {
-                        match self.interpreter.interpret_expr(&expr) {
-                            Ok(val) => {
-                                if !self.expr_history.contains(&expr) {
-                                    self.expr_history.push(expr);
-                                }
-                                if self.expr_selector == self.expr_history.len() {
-                                    self.expr_selector += 1;
-                                }
-                                // Only reset input if we successfully evaluate
-                                self.input = textarea(None, None, None);
-                                self.interpreter.define("ans".to_string(), Value::Num(val));
-                                self.err = None;
-                                self.output = Some(val.to_string());
-                            }
-                            Err(err) => self.err = Some(err.to_string()),
-                        }
+        match Parser::new(tokens).parse() {
+            Ok(stmt) => {
+                if let Stmt::Expr(expr) = &stmt {
+                    if !self.expr_history.contains(expr) {
+                        self.expr_history.push(expr.clone());
                     }
-                    Stmt::Fn(name, parameters, body) => {
-                        self.interpreter.declare_function(name, parameters, body);
+                    if self.expr_selector == self.expr_history.len() {
+                        self.expr_selector += 1;
+                    }
+                }
+                match self.interpreter.interpret(stmt) {
+                    Ok(res) => {
+                        if let Some(res) = res {
+                            self.set_output(res.to_string());
+                        }
                         self.input = textarea(None, None, None);
                     }
-                    Stmt::Assign(name, expr) => {
-                        match self.interpreter.interpret_expr(&expr) {
-                            Ok(val) => {
-                                if !self.expr_history.contains(&expr) {
-                                    self.expr_history.push(expr);
-                                }
-                                if self.expr_selector == self.expr_history.len() {
-                                    self.expr_selector += 1;
-                                }
-                                // Only reset input if we successfully evaluate
-                                self.input = textarea(None, None, None);
-                                self.interpreter.define("ans".to_string(), Value::Num(val));
-                                self.set_output(val.to_string());
-                                self.interpreter.define(name, Value::Num(val));
-                            }
-                            Err(err) => self.output = Some(err.to_string()),
-                        }
-                    }
+                    Err(err) => self.set_err(err.to_string()),
                 }
             }
             Err(err) => self.set_err(err.to_string()),
@@ -273,8 +247,8 @@ mod tests {
 
     fn assert_output(app: &App, expected: f64) {
         // Yuck.
-        if let Some(ref output) = app.output {
-            assert_eq!(*output.as_ref().unwrap(), expected);
+        if let Some(output) = &app.output {
+            assert_eq!(output.parse::<f64>().unwrap(), expected);
         } else {
             panic!("Not equal");
         }
@@ -285,14 +259,14 @@ mod tests {
         let mut app = new_app();
         input_and_evaluate(&mut app, "fn foo(x, y) x + y");
         input_and_evaluate(&mut app, "foo (1, 2)");
-        assert!(app.output.is_some_and(|r| r.is_ok_and(|n| n == 3.0)));
+        assert!(app.output.is_some_and(|r| r == "3"));
     }
 
     #[test]
     fn test_empty_input() {
         let mut app = new_app();
         input_and_evaluate(&mut app, "");
-        assert!(app.output.is_some_and(|o| o.is_err()));
+        assert!(app.err.is_some_and(|o| o == "Expected expression, got: "));
     }
 
     #[test]
@@ -325,7 +299,7 @@ mod tests {
         let mut app = new_app_empty_rc();
         input_and_evaluate(&mut app, "let x = 5");
         input_and_evaluate(&mut app, "fn foo(a, b) a + b * 5");
-        app.update_rc().unwrap();
+        app.update_rc();
         drop(app);
         let mut app = new_app();
         input_and_evaluate(&mut app, "x");

@@ -7,6 +7,7 @@ pub enum Token {
     Comma,
     Ident(String),
     Let,
+    Undef,
     Eq,
     Pipe,
     Mod,
@@ -25,6 +26,7 @@ impl std::fmt::Display for Token {
         match self {
             Token::Num(num) => inner_write(num, f),
             Token::Fn => inner_write("fn", f),
+            Token::Undef => inner_write("undef", f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
             Token::Let => inner_write("let", f),
@@ -119,6 +121,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 match func.as_str() {
                     "fn" => Token::Fn,
                     "let" => Token::Let,
+                    "undef" => Token::Undef,
                     _ => Token::Ident(func),
                 }
             }

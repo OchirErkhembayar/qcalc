@@ -22,6 +22,7 @@ pub enum Stmt {
     Expr(Expr),
     Fn(String, Vec<String>, Expr),
     Assign(String, Expr),
+    Undef(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +30,7 @@ pub enum Value {
     Fn(Function),
     Num(f64),
 }
+
 impl Value {
     pub fn to_input(&self, name: &str) -> String {
         match self {
@@ -82,6 +84,34 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             env: Self::default_env(),
+        }
+    }
+
+    pub fn interpret(&mut self, stmt: Stmt) -> Result<Option<f64>, InterpretError> {
+        match stmt {
+            Stmt::Assign(name, expr) => {
+                let val = self.interpret_expr(&expr)?;
+                self.env.insert(name, Value::Num(val));
+                Ok(Some(val))
+            }
+            Stmt::Expr(expr) => {
+                let ans = self.interpret_expr(&expr)?;
+                self.env.insert("ans".to_string(), Value::Num(ans));
+                Ok(Some(ans))
+            }
+            Stmt::Fn(name, params, body) => {
+                self.env.insert(
+                    name,
+                    Value::Fn(Function::new(params, body, self.env.clone())),
+                );
+                Ok(None)
+            }
+            Stmt::Undef(names) => {
+                names.iter().for_each(|name| {
+                    self.env.remove(name);
+                });
+                Ok(None)
+            }
         }
     }
 
