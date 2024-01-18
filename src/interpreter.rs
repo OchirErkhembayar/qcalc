@@ -189,10 +189,16 @@ impl Interpreter {
                 let val = match func {
                     Func::Sin => arg.sin(),
                     Func::Sinh => arg.sinh(),
+                    Func::Asin => arg.asin(),
+                    Func::Asinh => arg.asinh(),
                     Func::Cos => arg.cos(),
                     Func::Cosh => arg.cosh(),
+                    Func::Acos => arg.acos(),
+                    Func::Acosh => arg.acosh(),
                     Func::Tan => arg.tan(),
                     Func::Tanh => arg.tanh(),
+                    Func::Atan => arg.atan(),
+                    Func::Atanh => arg.tanh(),
                     Func::Ln => arg.ln(),
                     Func::Log(b) => arg.log(*b),
                     Func::Degs => arg.to_degrees(),
@@ -202,6 +208,12 @@ impl Interpreter {
                     Func::Cube => arg.powi(3),
                     Func::Cbrt => arg.cbrt(),
                     Func::Round => arg.round(),
+                    Func::Ceil => arg.ceil(),
+                    Func::Floor => arg.floor(),
+                    Func::Exp => arg.exp(),
+                    Func::Exp2 => arg.exp2(),
+                    Func::Fract => arg.fract(),
+                    Func::Recip => arg.recip(),
                 };
                 Ok(val)
             }

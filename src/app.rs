@@ -21,8 +21,6 @@ pub enum Popup {
     Function,
 }
 
-// Create an error field kind of like stderr and stdout
-// Check if that exists in the ui before rendering the output
 pub struct App<'ta> {
     pub input: TextArea<'ta>,
     pub output: Option<String>,
@@ -36,8 +34,6 @@ pub struct App<'ta> {
 }
 
 impl<'ta> App<'ta> {
-    // The rc_file must exist at this point.
-    // TODO: Think about moving the std::file_creation call into this constructor
     pub fn new(rc_file: PathBuf) -> Self {
         let file = OpenOptions::new()
             .read(true)
@@ -277,6 +273,10 @@ mod tests {
             ("sqrt(16)", 4.0),
             ("cube(2)", 8.0),
             ("cbrt(8)", 2.0),
+            ("round(2.49999)", 2.0),
+            ("cos(rads(180))", -1.0),
+            ("floor(2.99)", 2.0),
+            ("recip(2)", 0.5),
         ];
 
         input_and_ans.iter().for_each(|(input, exp)| {

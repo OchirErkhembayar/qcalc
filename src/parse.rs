@@ -3,10 +3,16 @@ use std::{error::Error, fmt::Display};
 use crate::{inner_write, interpreter::Stmt, token::Token};
 const COS: &str = "cos";
 const COSH: &str = "cosh";
+const ACOS: &str = "acos";
+const ACOSH: &str = "acosh";
 const SIN: &str = "sin";
 const SINH: &str = "sinh";
+const ASIN: &str = "asin";
+const ASINH: &str = "asinh";
 const TAN: &str = "tan";
 const TANH: &str = "tanh";
+const ATAN: &str = "atan";
+const ATANH: &str = "atanh";
 const LOG: &str = "log";
 const LN: &str = "ln";
 const DEGS: &str = "degs";
@@ -16,6 +22,12 @@ const SQ: &str = "sq";
 const CBRT: &str = "cbrt";
 const CUBE: &str = "cube";
 const ROUND: &str = "round";
+const CEIL: &str = "ceil";
+const FLOOR: &str = "floor";
+const EXP: &str = "exp";
+const EXP2: &str = "exp2";
+const FRACT: &str = "fract";
+const RECIP: &str = "recip";
 
 #[derive(Debug)]
 pub struct Parser {
@@ -34,10 +46,16 @@ pub struct ParseErr {
 pub enum Func {
     Sin,
     Sinh,
+    Asin,
+    Asinh,
     Cos,
     Cosh,
+    Acos,
+    Acosh,
     Tan,
     Tanh,
+    Atan,
+    Atanh,
     Ln,
     Log(f64),
     Degs,
@@ -47,6 +65,12 @@ pub enum Func {
     Cube,
     Cbrt,
     Round,
+    Ceil,
+    Floor,
+    Exp,
+    Exp2,
+    Fract,
+    Recip,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -316,10 +340,16 @@ impl Parser {
             let func = match func.as_str() {
                 SIN => Func::Sin,
                 SINH => Func::Sinh,
+                ASIN => Func::Asin,
+                ASINH => Func::Asinh,
                 COS => Func::Cos,
                 COSH => Func::Cosh,
+                ACOS => Func::Acos,
+                ACOSH => Func::Acosh,
                 TAN => Func::Tan,
                 TANH => Func::Tanh,
+                ATAN => Func::Atan,
+                ATANH => Func::Atanh,
                 LN => Func::Ln,
                 LOG => {
                     if let Token::Num(base) = self.advance() {
@@ -338,6 +368,12 @@ impl Parser {
                 CUBE => Func::Cube,
                 CBRT => Func::Cbrt,
                 ROUND => Func::Round,
+                CEIL => Func::Ceil,
+                FLOOR => Func::Floor,
+                EXP => Func::Exp,
+                EXP2 => Func::Exp2,
+                FRACT => Func::Fract,
+                RECIP => Func::Recip,
                 _ => return Ok(Expr::Var(func)),
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -371,10 +407,16 @@ impl Display for Func {
             match self {
                 Func::Sin => SIN,
                 Func::Sinh => SINH,
+                Func::Asin => ASIN,
+                Func::Asinh => ASINH,
                 Func::Cos => COS,
                 Func::Cosh => COSH,
+                Func::Acos => ACOS,
+                Func::Acosh => ACOSH,
                 Func::Tan => TAN,
                 Func::Tanh => TANH,
+                Func::Atan => ATAN,
+                Func::Atanh => ATANH,
                 Func::Ln => LN,
                 Func::Log(base) => return inner_write(format!("log{}", base), f),
                 Func::Degs => DEGS,
@@ -384,6 +426,12 @@ impl Display for Func {
                 Func::Cube => CUBE,
                 Func::Cbrt => CBRT,
                 Func::Round => ROUND,
+                Func::Ceil => CEIL,
+                Func::Floor => FLOOR,
+                Func::Exp => EXP,
+                Func::Exp2 => EXP2,
+                Func::Fract => FRACT,
+                Func::Recip => RECIP,
             }
         )
     }
