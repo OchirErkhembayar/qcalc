@@ -21,5 +21,6 @@ include = [
 
 [dependencies]
 crossterm = "0.27.0"
+dirs-next = "2.0.0"
 ratatui = "0.25.0"
 tui-textarea = "0.4.0"

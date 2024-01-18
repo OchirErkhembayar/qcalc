@@ -6,6 +6,9 @@ pub enum Token {
     Fn,
     Comma,
     Ident(String),
+    Let,
+    Undef,
+    Eq,
     Pipe,
     Mod,
     Div,
@@ -23,8 +26,11 @@ impl std::fmt::Display for Token {
         match self {
             Token::Num(num) => inner_write(num, f),
             Token::Fn => inner_write("fn", f),
+            Token::Undef => inner_write("undef", f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
+            Token::Let => inner_write("let", f),
+            Token::Eq => inner_write("=", f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
@@ -49,6 +55,12 @@ impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a [char]) -> Self {
         Self { input, index: 0 }
     }
+
+    pub fn into_tokens(self) -> Vec<Token> {
+        let mut tokens = self.collect::<Vec<_>>();
+        tokens.push(Token::Eoe);
+        tokens
+    }
 }
 
 impl<'a> Iterator for Tokenizer<'a> {
@@ -62,6 +74,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 return self.next();
             }
             ',' => Token::Comma,
+            '=' => Token::Eq,
             '|' => Token::Pipe,
             '/' => Token::Div,
             '+' => Token::Plus,
@@ -105,10 +118,11 @@ impl<'a> Iterator for Tokenizer<'a> {
                     func.push(self.input[self.index]);
                     self.index += 1;
                 }
-                if func == "fn" {
-                    Token::Fn
-                } else {
-                    Token::Ident(func)
+                match func.as_str() {
+                    "fn" => Token::Fn,
+                    "let" => Token::Let,
+                    "undef" => Token::Undef,
+                    _ => Token::Ident(func),
                 }
             }
             _ => return None, // Unknown chars just end the parsing. Not sure if good or

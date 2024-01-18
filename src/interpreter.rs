@@ -21,12 +21,28 @@ pub struct Interpreter {
 pub enum Stmt {
     Expr(Expr),
     Fn(String, Vec<String>, Expr),
+    Assign(String, Expr),
+    Undef(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Fn(Function),
     Num(f64),
+}
+
+impl Value {
+    pub fn to_input(&self, name: &str) -> String {
+        match self {
+            Self::Num(num) => format!("let {} = {}", name, num),
+            Self::Fn(func) => format!(
+                "fn {}({}) {}",
+                name,
+                func.parameters.join(", "),
+                func.body.format()
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +84,34 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             env: Self::default_env(),
+        }
+    }
+
+    pub fn interpret(&mut self, stmt: Stmt) -> Result<Option<f64>, InterpretError> {
+        match stmt {
+            Stmt::Assign(name, expr) => {
+                let val = self.interpret_expr(&expr)?;
+                self.env.insert(name, Value::Num(val));
+                Ok(Some(val))
+            }
+            Stmt::Expr(expr) => {
+                let ans = self.interpret_expr(&expr)?;
+                self.env.insert("ans".to_string(), Value::Num(ans));
+                Ok(Some(ans))
+            }
+            Stmt::Fn(name, params, body) => {
+                self.env.insert(
+                    name,
+                    Value::Fn(Function::new(params, body, self.env.clone())),
+                );
+                Ok(None)
+            }
+            Stmt::Undef(names) => {
+                names.iter().for_each(|name| {
+                    self.env.remove(name);
+                });
+                Ok(None)
+            }
         }
     }
 
@@ -145,10 +189,16 @@ impl Interpreter {
                 let val = match func {
                     Func::Sin => arg.sin(),
                     Func::Sinh => arg.sinh(),
+                    Func::Asin => arg.asin(),
+                    Func::Asinh => arg.asinh(),
                     Func::Cos => arg.cos(),
                     Func::Cosh => arg.cosh(),
+                    Func::Acos => arg.acos(),
+                    Func::Acosh => arg.acosh(),
                     Func::Tan => arg.tan(),
                     Func::Tanh => arg.tanh(),
+                    Func::Atan => arg.atan(),
+                    Func::Atanh => arg.tanh(),
                     Func::Ln => arg.ln(),
                     Func::Log(b) => arg.log(*b),
                     Func::Degs => arg.to_degrees(),
@@ -158,6 +208,12 @@ impl Interpreter {
                     Func::Cube => arg.powi(3),
                     Func::Cbrt => arg.cbrt(),
                     Func::Round => arg.round(),
+                    Func::Ceil => arg.ceil(),
+                    Func::Floor => arg.floor(),
+                    Func::Exp => arg.exp(),
+                    Func::Exp2 => arg.exp2(),
+                    Func::Fract => arg.fract(),
+                    Func::Recip => arg.recip(),
                 };
                 Ok(val)
             }

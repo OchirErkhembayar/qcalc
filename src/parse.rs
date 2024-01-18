@@ -3,10 +3,16 @@ use std::{error::Error, fmt::Display};
 use crate::{inner_write, interpreter::Stmt, token::Token};
 const COS: &str = "cos";
 const COSH: &str = "cosh";
+const ACOS: &str = "acos";
+const ACOSH: &str = "acosh";
 const SIN: &str = "sin";
 const SINH: &str = "sinh";
+const ASIN: &str = "asin";
+const ASINH: &str = "asinh";
 const TAN: &str = "tan";
 const TANH: &str = "tanh";
+const ATAN: &str = "atan";
+const ATANH: &str = "atanh";
 const LOG: &str = "log";
 const LN: &str = "ln";
 const DEGS: &str = "degs";
@@ -16,6 +22,12 @@ const SQ: &str = "sq";
 const CBRT: &str = "cbrt";
 const CUBE: &str = "cube";
 const ROUND: &str = "round";
+const CEIL: &str = "ceil";
+const FLOOR: &str = "floor";
+const EXP: &str = "exp";
+const EXP2: &str = "exp2";
+const FRACT: &str = "fract";
+const RECIP: &str = "recip";
 
 #[derive(Debug)]
 pub struct Parser {
@@ -34,10 +46,16 @@ pub struct ParseErr {
 pub enum Func {
     Sin,
     Sinh,
+    Asin,
+    Asinh,
     Cos,
     Cosh,
+    Acos,
+    Acosh,
     Tan,
     Tanh,
+    Atan,
+    Atanh,
     Ln,
     Log(f64),
     Degs,
@@ -47,6 +65,12 @@ pub enum Func {
     Cube,
     Cbrt,
     Round,
+    Ceil,
+    Floor,
+    Exp,
+    Exp2,
+    Fract,
+    Recip,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -139,6 +163,8 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
         let res = match self.peek() {
             Token::Fn => self.function()?,
+            Token::Let => self.assign()?,
+            Token::Undef => self.undef()?,
             _ => Stmt::Expr(self.expression()?),
         };
         if self.at_end() {
@@ -180,6 +206,45 @@ impl Parser {
         self.consume(Token::RParen, "Missing closing parentheses")?;
         let expr = self.expression()?;
         Ok(Stmt::Fn(name, parameters, expr))
+    }
+
+    fn undef(&mut self) -> Result<Stmt, ParseErr> {
+        self.advance();
+        self.consume(Token::LParen, "Missing opening parentheses")?;
+        let mut parameters = Vec::new();
+        if *self.peek() != Token::RParen {
+            loop {
+                let next = self.advance();
+                if let Token::Ident(arg) = &next {
+                    if parameters.contains(arg) {
+                        return Err(ParseErr::new(
+                            next.clone(),
+                            "Function parameters must be unique",
+                        ));
+                    }
+                    parameters.push(arg.clone()); // Not ideal...
+                } else {
+                    return Err(ParseErr::new(next, "Expected argument"));
+                }
+                if *self.peek() != Token::Comma {
+                    break;
+                }
+                self.advance();
+            }
+        }
+        self.consume(Token::RParen, "Missing closing parentheses")?;
+        Ok(Stmt::Undef(parameters))
+    }
+
+    fn assign(&mut self) -> Result<Stmt, ParseErr> {
+        self.advance();
+        let name = match self.advance() {
+            Token::Ident(name) => name,
+            token => return Err(ParseErr::new(token, "Missing function name")),
+        };
+        self.consume(Token::Eq, "Expected =")?;
+        let expr = self.expression()?;
+        Ok(Stmt::Assign(name, expr))
     }
 
     fn expression(&mut self) -> Result<Expr, ParseErr> {
@@ -275,10 +340,16 @@ impl Parser {
             let func = match func.as_str() {
                 SIN => Func::Sin,
                 SINH => Func::Sinh,
+                ASIN => Func::Asin,
+                ASINH => Func::Asinh,
                 COS => Func::Cos,
                 COSH => Func::Cosh,
+                ACOS => Func::Acos,
+                ACOSH => Func::Acosh,
                 TAN => Func::Tan,
                 TANH => Func::Tanh,
+                ATAN => Func::Atan,
+                ATANH => Func::Atanh,
                 LN => Func::Ln,
                 LOG => {
                     if let Token::Num(base) = self.advance() {
@@ -297,6 +368,12 @@ impl Parser {
                 CUBE => Func::Cube,
                 CBRT => Func::Cbrt,
                 ROUND => Func::Round,
+                CEIL => Func::Ceil,
+                FLOOR => Func::Floor,
+                EXP => Func::Exp,
+                EXP2 => Func::Exp2,
+                FRACT => Func::Fract,
+                RECIP => Func::Recip,
                 _ => return Ok(Expr::Var(func)),
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -312,7 +389,7 @@ impl Error for ParseErr {}
 
 impl Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ERROR: {}", self.msg)
+        write!(f, "{}, got: {}", self.msg, self.token)
     }
 }
 
@@ -330,10 +407,16 @@ impl Display for Func {
             match self {
                 Func::Sin => SIN,
                 Func::Sinh => SINH,
+                Func::Asin => ASIN,
+                Func::Asinh => ASINH,
                 Func::Cos => COS,
                 Func::Cosh => COSH,
+                Func::Acos => ACOS,
+                Func::Acosh => ACOSH,
                 Func::Tan => TAN,
                 Func::Tanh => TANH,
+                Func::Atan => ATAN,
+                Func::Atanh => ATANH,
                 Func::Ln => LN,
                 Func::Log(base) => return inner_write(format!("log{}", base), f),
                 Func::Degs => DEGS,
@@ -343,6 +426,12 @@ impl Display for Func {
                 Func::Cube => CUBE,
                 Func::Cbrt => CBRT,
                 Func::Round => ROUND,
+                Func::Ceil => CEIL,
+                Func::Floor => FLOOR,
+                Func::Exp => EXP,
+                Func::Exp2 => EXP2,
+                Func::Fract => FRACT,
+                Func::Recip => RECIP,
             }
         )
     }
@@ -520,5 +609,19 @@ mod tests {
         ));
 
         assert_eq!(Parser::new(tokens).parse(), expected);
+    }
+
+    #[test]
+    fn test_assignment() {
+        let tokens = vec![
+            Token::Let,
+            Token::Ident("foo".to_string()),
+            Token::Eq,
+            Token::Num(50.0),
+            Token::Eoe,
+        ];
+        let expected = Stmt::Assign("foo".to_string(), Expr::Num(50.0));
+
+        assert_eq!(Parser::new(tokens).parse(), Ok(expected));
     }
 }
