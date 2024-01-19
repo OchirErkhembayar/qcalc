@@ -45,8 +45,9 @@ pub fn tui() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn eval(input: &str) -> Result<f64, Box<dyn Error>> {
-    let tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).into_tokens();
-    let stmt = Parser::new(tokens).parse()?;
+    let mut tokens = Tokenizer::new(input.chars().peekable()).peekable();
+    let current = tokens.next().ok_or("Expected expression")?;
+    let stmt = Parser::new(tokens, current).parse()?;
     let res = Interpreter::new().interpret(stmt)?;
     if let Some(ans) = res {
         Ok(ans)

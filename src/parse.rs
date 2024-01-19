@@ -1,3 +1,5 @@
+use crate::Tokenizer;
+use core::iter::Peekable;
 use std::{error::Error, fmt::Display};
 
 use crate::{inner_write, interpreter::Stmt, token::Token};
@@ -30,9 +32,9 @@ const FRACT: &str = "fract";
 const RECIP: &str = "recip";
 
 #[derive(Debug)]
-pub struct Parser {
-    tokens: Vec<Token>,
-    current: usize,
+pub struct Parser<'a> {
+    tokens: Peekable<Tokenizer<'a>>,
+    current: Token,
 }
 
 #[derive(Debug, PartialEq)]
@@ -119,47 +121,45 @@ impl ParseErr {
     }
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+impl<'a> Parser<'a> {
+    pub fn new(tokens: Peekable<Tokenizer<'a>>, current: Token) -> Self {
+        Self { tokens, current }
     }
 
-    fn at_end(&self) -> bool {
-        *self.peek() == Token::Eoe
-    }
-
-    fn previous(&self) -> Token {
-        self.tokens[self.current - 1].clone()
+    fn at_end(&mut self) -> bool {
+        self.tokens.peek().is_none()
     }
 
     fn advance(&mut self) -> Token {
         if !self.at_end() {
-            self.current += 1;
+            let mut next = self.tokens.next().unwrap();
+            std::mem::swap(&mut self.current, &mut next);
+            next
+        } else {
+            // Not a big deal because this is only for the last token
+            self.current.clone()
         }
-        self.previous()
     }
 
     fn peek(&self) -> &Token {
-        &self.tokens[self.current]
+        &self.current
     }
 
-    fn check(&self, token: &Token) -> bool {
-        if self.at_end() {
-            return false;
-        }
-        *self.peek() == *token
+    fn check(&mut self, token: &Token) -> bool {
+        self.current == *token
     }
 
     fn consume(&mut self, token: Token, msg: &'static str) -> Result<Token, ParseErr> {
         if self.check(&token) {
             Ok(self.advance())
         } else {
+            eprintln!("Not matching got: {:?} exp {:?}", self.current, token);
             Err(ParseErr::new(token, msg))
         }
     }
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
         let res = match self.peek() {
             Token::Fn => self.function()?,
@@ -186,14 +186,14 @@ impl Parser {
         if *self.peek() != Token::RParen {
             loop {
                 let next = self.advance();
-                if let Token::Ident(arg) = &next {
-                    if parameters.contains(arg) {
+                if let Token::Ident(arg) = next {
+                    if parameters.contains(&arg) {
                         return Err(ParseErr::new(
-                            next.clone(),
+                            Token::Ident(arg),
                             "Function parameters must be unique",
                         ));
                     }
-                    parameters.push(arg.clone()); // Not ideal...
+                    parameters.push(arg);
                 } else {
                     return Err(ParseErr::new(next, "Expected argument"));
                 }
@@ -215,14 +215,14 @@ impl Parser {
         if *self.peek() != Token::RParen {
             loop {
                 let next = self.advance();
-                if let Token::Ident(arg) = &next {
-                    if parameters.contains(arg) {
+                if let Token::Ident(arg) = next {
+                    if parameters.contains(&arg) {
                         return Err(ParseErr::new(
-                            next.clone(),
+                            Token::Ident(arg),
                             "Function parameters must be unique",
                         ));
                     }
-                    parameters.push(arg.clone()); // Not ideal...
+                    parameters.push(arg);
                 } else {
                     return Err(ParseErr::new(next, "Expected argument"));
                 }
@@ -254,7 +254,9 @@ impl Parser {
     fn term(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.factor()?;
         while *self.peek() == Token::Plus || *self.peek() == Token::Minus {
+            eprintln!("Current: {}", self.current);
             let operator = self.advance();
+            eprintln!("Op: {}", operator);
             let right = self.factor()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
@@ -298,6 +300,7 @@ impl Parser {
         let expr = self.primary()?;
 
         if let Expr::Var(name) = &expr {
+            eprintln!("Name: {}", name);
             if self.check(&Token::LParen) {
                 self.advance();
                 let mut args = vec![];
@@ -378,6 +381,7 @@ impl Parser {
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
             let arg = Box::new(self.expression()?);
+            eprintln!("Current: {:?}", self.current);
             self.consume(Token::RParen, "Missing closing parentheses")?;
             return Ok(Expr::Func(func, arg));
         }
@@ -441,8 +445,10 @@ impl Display for Func {
 mod tests {
     use super::*;
 
-    fn check(tokens: Vec<Token>, expected: Expr) {
-        let mut parser = Parser::new(tokens);
+    fn check(str: &str, expected: Expr) {
+        let mut tokenizer = Tokenizer::new(str.chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        let mut parser = Parser::new(tokenizer, current);
         let expr = parser.parse().unwrap();
 
         assert_eq!(expr, Stmt::Expr(expected));
@@ -450,40 +456,28 @@ mod tests {
 
     #[test]
     fn simple_add() {
-        let tokens = vec![Token::Num(10.0), Token::Plus, Token::Num(5.0), Token::Eoe];
         let expr = Expr::Binary(
             Box::new(Expr::Num(10.0)),
             Token::Plus,
             Box::new(Expr::Num(5.0)),
         );
 
-        check(tokens, expr);
+        check("10 + 5", expr);
     }
 
     #[test]
     fn simple_mult() {
-        let tokens = vec![Token::Num(20.0), Token::Mult, Token::Num(5.0), Token::Eoe];
         let expr = Expr::Binary(
             Box::new(Expr::Num(20.0)),
             Token::Mult,
             Box::new(Expr::Num(5.0)),
         );
 
-        check(tokens, expr);
+        check("20 * 5", expr);
     }
 
     #[test]
     fn grouping() {
-        let tokens = vec![
-            Token::LParen,
-            Token::Num(1.0),
-            Token::Plus,
-            Token::Num(2.0),
-            Token::RParen,
-            Token::Mult,
-            Token::Num(5.0),
-            Token::Eoe,
-        ];
         let expr = Expr::Binary(
             Box::new(Expr::Grouping(Box::new(Expr::Binary(
                 Box::new(Expr::Num(1.0)),
@@ -494,20 +488,11 @@ mod tests {
             Box::new(Expr::Num(5.0)),
         );
 
-        check(tokens, expr);
+        check("(1 + 2) * 5", expr);
     }
 
     #[test]
     fn negative() {
-        let tokens = vec![
-            Token::Minus,
-            Token::LParen,
-            Token::Num(5.0),
-            Token::RParen,
-            Token::Div,
-            Token::Num(1.0),
-            Token::Eoe,
-        ];
         let expr = Expr::Binary(
             Box::new(Expr::Negative(Box::new(Expr::Grouping(Box::new(
                 Expr::Num(5.0),
@@ -516,13 +501,14 @@ mod tests {
             Box::new(Expr::Num(1.0)),
         );
 
-        check(tokens, expr);
+        check("-(5) / 1", expr);
     }
 
     #[test]
     fn test_missing_closing_paren() {
-        let tokens = vec![Token::Minus, Token::LParen, Token::Num(5.0), Token::Eoe];
-        if let Err(err) = Parser::new(tokens).parse() {
+        let mut tokenizer = Tokenizer::new("-(5".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        if let Err(err) = Parser::new(tokenizer, current).parse() {
             assert_eq!(
                 err,
                 ParseErr::new(Token::RParen, "Missing closing parentheses")
@@ -534,19 +520,6 @@ mod tests {
 
     #[test]
     fn test_function_mult_params() {
-        let tokens = vec![
-            Token::Fn,
-            Token::Ident("foo".to_string()),
-            Token::LParen,
-            Token::Ident("x".to_string()),
-            Token::Comma,
-            Token::Ident("y".to_string()),
-            Token::RParen,
-            Token::Ident("x".to_string()),
-            Token::Plus,
-            Token::Ident("y".to_string()),
-            Token::Eoe,
-        ];
         let expected = Stmt::Fn(
             "foo".to_string(),
             vec!["x".to_string(), "y".to_string()],
@@ -557,23 +530,14 @@ mod tests {
             ),
         );
 
-        let stmt = Parser::new(tokens).parse().unwrap();
+        let mut tokenizer = Tokenizer::new("fn foo(x, y) x + y".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        let stmt = Parser::new(tokenizer, current).parse().unwrap();
         assert_eq!(stmt, expected);
     }
 
     #[test]
     fn test_function_single_param() {
-        let tokens = vec![
-            Token::Fn,
-            Token::Ident("foo".to_string()),
-            Token::LParen,
-            Token::Ident("y".to_string()),
-            Token::RParen,
-            Token::Ident("y".to_string()),
-            Token::Plus,
-            Token::Num(1.0),
-            Token::Eoe,
-        ];
         let expected = Stmt::Fn(
             "foo".to_string(),
             vec!["y".to_string()],
@@ -584,44 +548,33 @@ mod tests {
             ),
         );
 
-        let stmt = Parser::new(tokens).parse().unwrap();
+        let mut tokenizer = Tokenizer::new("fn foo(y)y+1".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        let stmt = Parser::new(tokenizer, current).parse().unwrap();
         assert_eq!(stmt, expected);
     }
 
     #[test]
     fn test_uniq_params() {
-        let tokens = vec![
-            Token::Fn,
-            Token::Ident("foo".to_string()),
-            Token::LParen,
-            Token::Ident("y".to_string()),
-            Token::Comma,
-            Token::Ident("y".to_string()),
-            Token::RParen,
-            Token::Ident("y".to_string()),
-            Token::Plus,
-            Token::Ident("y".to_string()),
-            Token::Eoe,
-        ];
         let expected = Err(ParseErr::new(
             Token::Ident("y".to_string()),
             "Function parameters must be unique",
         ));
 
-        assert_eq!(Parser::new(tokens).parse(), expected);
+        let mut tokenizer = Tokenizer::new("fn foo(y, y, y, y)".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), expected);
     }
 
     #[test]
     fn test_assignment() {
-        let tokens = vec![
-            Token::Let,
-            Token::Ident("foo".to_string()),
-            Token::Eq,
-            Token::Num(50.0),
-            Token::Eoe,
-        ];
-        let expected = Stmt::Assign("foo".to_string(), Expr::Num(50.0));
+        let expected = Stmt::Assign(
+            "foo".to_string(),
+            Expr::Func(Func::Sq, Box::new(Expr::Num(2.0))),
+        );
 
-        assert_eq!(Parser::new(tokens).parse(), Ok(expected));
+        let mut tokenizer = Tokenizer::new("let foo = sq(2.0)".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }
 }

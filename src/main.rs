@@ -16,10 +16,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     if inputs.is_empty() {
         qcalc::tui()
     } else {
+        let now = std::time::Instant::now();
         for input in inputs.iter() {
             let res = eval(input)?;
-            println!("{}", res);
+            // println!("{}", res);
         }
+        let elapsed = now.elapsed();
+        println!("Time: {}", elapsed.as_millis());
         Ok(())
     }
 }
