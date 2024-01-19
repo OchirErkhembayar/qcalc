@@ -153,7 +153,6 @@ impl<'a> Parser<'a> {
         if self.check(&token) {
             Ok(self.advance())
         } else {
-            eprintln!("Not matching got: {:?} exp {:?}", self.current, token);
             Err(ParseErr::new(token, msg))
         }
     }
@@ -254,9 +253,7 @@ impl<'a> Parser<'a> {
     fn term(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.factor()?;
         while *self.peek() == Token::Plus || *self.peek() == Token::Minus {
-            eprintln!("Current: {}", self.current);
             let operator = self.advance();
-            eprintln!("Op: {}", operator);
             let right = self.factor()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
@@ -300,7 +297,6 @@ impl<'a> Parser<'a> {
         let expr = self.primary()?;
 
         if let Expr::Var(name) = &expr {
-            eprintln!("Name: {}", name);
             if self.check(&Token::LParen) {
                 self.advance();
                 let mut args = vec![];
@@ -381,7 +377,6 @@ impl<'a> Parser<'a> {
             };
             self.consume(Token::LParen, "Missing opening parentheses")?;
             let arg = Box::new(self.expression()?);
-            eprintln!("Current: {:?}", self.current);
             self.consume(Token::RParen, "Missing closing parentheses")?;
             return Ok(Expr::Func(func, arg));
         }
