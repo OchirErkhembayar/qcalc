@@ -1,4 +1,11 @@
+use core::iter::Peekable;
+use std::str::Chars;
+
 use crate::inner_write;
+
+const FN: &str = "fn";
+const LET: &str = "let";
+const UNDEF: &str = "undef";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
@@ -18,19 +25,18 @@ pub enum Token {
     RParen,
     LParen,
     Power,
-    Eoe,
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Num(num) => inner_write(num, f),
-            Token::Fn => inner_write("fn", f),
-            Token::Undef => inner_write("undef", f),
+            Token::Fn => inner_write(FN, f),
+            Token::Undef => inner_write(UNDEF, f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
-            Token::Let => inner_write("let", f),
-            Token::Eq => inner_write("=", f),
+            Token::Let => inner_write(LET, f),
+            Token::Eq => inner_write('=', f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
@@ -40,26 +46,18 @@ impl std::fmt::Display for Token {
             Token::LParen => inner_write('(', f),
             Token::RParen => inner_write(')', f),
             Token::Power => inner_write('^', f),
-            Token::Eoe => inner_write("", f),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Tokenizer<'a> {
-    input: &'a [char],
-    index: usize,
+    input: Peekable<Chars<'a>>,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(input: &'a [char]) -> Self {
-        Self { input, index: 0 }
-    }
-
-    pub fn into_tokens(self) -> Vec<Token> {
-        let mut tokens = self.collect::<Vec<_>>();
-        tokens.push(Token::Eoe);
-        tokens
+    pub fn new(input: Peekable<Chars<'a>>) -> Self {
+        Self { input }
     }
 }
 
@@ -67,10 +65,12 @@ impl<'a> Iterator for Tokenizer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next = self.input.get(self.index)?;
-        self.index += 1;
+        let next = self.input.next()?;
         Some(match next {
             ' ' => {
+                while self.input.peek().is_some_and(|c| c.is_whitespace()) {
+                    self.input.next();
+                }
                 return self.next();
             }
             ',' => Token::Comma,
@@ -86,42 +86,26 @@ impl<'a> Iterator for Tokenizer<'a> {
             '^' => Token::Power,
             '0'..='9' => {
                 let mut num = next.to_string();
-                while self
-                    .input
-                    .get(self.index)
-                    .is_some_and(|c| c.is_ascii_digit())
-                {
-                    num.push(self.input[self.index]);
-                    self.index += 1;
+                while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
+                    num.push(self.input.next().unwrap());
                 }
-                if self.input.get(self.index).is_some_and(|c| *c == '.') {
-                    num.push(self.input[self.index]);
-                    self.index += 1;
-                    while self
-                        .input
-                        .get(self.index)
-                        .is_some_and(|c| c.is_ascii_digit())
-                    {
-                        num.push(self.input[self.index]);
-                        self.index += 1;
+                if self.input.peek().is_some_and(|c| *c == '.') {
+                    num.push(self.input.next().unwrap());
+                    while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
+                        num.push(self.input.next().unwrap());
                     }
                 }
                 Token::Num(num.parse().unwrap())
             }
             'A'..='Z' | 'a'..='z' => {
                 let mut func = next.to_string();
-                while self
-                    .input
-                    .get(self.index)
-                    .is_some_and(|c| c.is_ascii_alphabetic())
-                {
-                    func.push(self.input[self.index]);
-                    self.index += 1;
+                while self.input.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
+                    func.push(self.input.next().unwrap());
                 }
                 match func.as_str() {
-                    "fn" => Token::Fn,
-                    "let" => Token::Let,
-                    "undef" => Token::Undef,
+                    FN => Token::Fn,
+                    LET => Token::Let,
+                    UNDEF => Token::Undef,
                     _ => Token::Ident(func),
                 }
             }
@@ -138,32 +122,35 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let str = "1.3+3.2".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
-        assert_eq!(tokens, vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]);
+        let str = "1.3+3.2".chars().peekable();
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
+        assert_eq!(
+            tokenizer,
+            vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]
+        );
     }
 
     #[test]
     fn divide() {
-        let str = "13/32".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
+        let str = "13/32".chars().peekable();
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
-            tokens,
+            tokenizer,
             vec![Token::Num(13.0), Token::Div, Token::Num(32.0),]
         );
 
-        let str = "13.5/32.2".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
+        let str = "13.5/32.2".chars().peekable();
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
-            tokens,
+            tokenizer,
             vec![Token::Num(13.5), Token::Div, Token::Num(32.2),]
         );
     }
 
     #[test]
     fn test_space() {
-        let str = "13.5    + 12.5 *     30.5*10".chars().collect::<Vec<_>>();
-        let tokens = Tokenizer::new(str.as_slice()).collect::<Vec<_>>();
+        let str = "13.5    + 12.5 *     30.5*10".chars().peekable();
+        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
             tokens,
             vec![
@@ -176,5 +163,12 @@ mod tests {
                 Token::Num(10.0)
             ]
         );
+    }
+
+    #[test]
+    fn test_tokenizer() {
+        let str = "10 + 5";
+        let mut tokenizer = Tokenizer::new(str.chars().peekable());
+        assert_eq!(tokenizer.next(), Some(Token::Num(10.0)));
     }
 }

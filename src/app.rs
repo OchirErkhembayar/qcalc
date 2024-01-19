@@ -63,23 +63,25 @@ impl<'ta> App<'ta> {
         file.read_to_string(&mut buf)
             .expect("Failed to read from RC file");
         buf.lines().for_each(|line| {
-            let tokens = Tokenizer::new(line.chars().collect::<Vec<_>>().as_slice()).into_tokens();
-            let res = Parser::new(tokens)
-                .parse()
-                .expect("Invalid syntax in RC file");
-            match res {
-                Stmt::Fn(name, params, body) => {
-                    self.interpreter.declare_function(name, params, body)
+            let mut tokenizer = Tokenizer::new(line.chars().peekable()).peekable();
+            if let Some(token) = tokenizer.next() {
+                let res = Parser::new(tokenizer, token)
+                    .parse()
+                    .expect("Invalid syntax in RC file");
+                match res {
+                    Stmt::Fn(name, params, body) => {
+                        self.interpreter.declare_function(name, params, body)
+                    }
+                    Stmt::Assign(name, expr) => {
+                        self.interpreter.define(
+                            name,
+                            Value::Num(self.interpreter.interpret_expr(&expr).unwrap_or_else(
+                                |_| panic!("RC file: {} not found", &self.rc_file.display()),
+                            )),
+                        );
+                    }
+                    _ => {}
                 }
-                Stmt::Assign(name, expr) => {
-                    self.interpreter.define(
-                        name,
-                        Value::Num(self.interpreter.interpret_expr(&expr).unwrap_or_else(|_| {
-                            panic!("RC file: {} not found", &self.rc_file.display())
-                        })),
-                    );
-                }
-                _ => {}
             }
         });
     }
@@ -129,12 +131,12 @@ impl<'ta> App<'ta> {
 
     pub fn eval(&mut self) {
         let input = &self.input.lines()[0];
-        // TODO: Move the tokenizer into the parser so that we're not doing
-        // this unnecessary allocation. Figure out how to handle end of expressions
-        // without the use of semicolons (or implicitly add it in but then if someone
-        // enters one it would terminate their expression which is weird)
-        let tokens = Tokenizer::new(input.chars().collect::<Vec<_>>().as_slice()).into_tokens();
-        match Parser::new(tokens).parse() {
+        let mut tokenizer = Tokenizer::new(input.chars().peekable()).peekable();
+        if tokenizer.peek().is_none() {
+            return;
+        }
+        let current = tokenizer.next().unwrap();
+        match Parser::new(tokenizer, current).parse() {
             Ok(stmt) => {
                 if let Stmt::Expr(expr) = &stmt {
                     if !self.expr_history.contains(expr) {
@@ -246,7 +248,7 @@ mod tests {
         if let Some(output) = &app.output {
             assert_eq!(output.parse::<f64>().unwrap(), expected);
         } else {
-            panic!("Not equal");
+            panic!("Error: {:?}", app.err);
         }
     }
 
@@ -256,13 +258,6 @@ mod tests {
         input_and_evaluate(&mut app, "fn foo(x, y) x + y");
         input_and_evaluate(&mut app, "foo (1, 2)");
         assert!(app.output.is_some_and(|r| r == "3"));
-    }
-
-    #[test]
-    fn test_empty_input() {
-        let mut app = new_app();
-        input_and_evaluate(&mut app, "");
-        assert!(app.err.is_some_and(|o| o == "Expected expression, got: "));
     }
 
     #[test]
