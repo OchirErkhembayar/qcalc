@@ -33,7 +33,7 @@ const RECIP: &str = "recip";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
-    tokens: Peekable<Tokenizer<'a>>,
+    tokenizer: Peekable<Tokenizer<'a>>,
     current: Token,
 }
 
@@ -122,17 +122,17 @@ impl ParseErr {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: Peekable<Tokenizer<'a>>, current: Token) -> Self {
-        Self { tokens, current }
+    pub fn new(tokenizer: Peekable<Tokenizer<'a>>, current: Token) -> Self {
+        Self { tokenizer, current }
     }
 
     fn at_end(&mut self) -> bool {
-        self.tokens.peek().is_none()
+        self.tokenizer.peek().is_none()
     }
 
     fn advance(&mut self) -> Token {
         if !self.at_end() {
-            let mut next = self.tokens.next().unwrap();
+            let mut next = self.tokenizer.next().unwrap();
             std::mem::swap(&mut self.current, &mut next);
             next
         } else {

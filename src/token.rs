@@ -3,6 +3,10 @@ use std::str::Chars;
 
 use crate::inner_write;
 
+const FN: &str = "fn";
+const LET: &str = "let";
+const UNDEF: &str = "undef";
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Num(f64),
@@ -27,12 +31,12 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Num(num) => inner_write(num, f),
-            Token::Fn => inner_write("fn", f),
-            Token::Undef => inner_write("undef", f),
+            Token::Fn => inner_write(FN, f),
+            Token::Undef => inner_write(UNDEF, f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
-            Token::Let => inner_write("let", f),
-            Token::Eq => inner_write("=", f),
+            Token::Let => inner_write(LET, f),
+            Token::Eq => inner_write('=', f),
             Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
@@ -99,9 +103,9 @@ impl<'a> Iterator for Tokenizer<'a> {
                     func.push(self.input.next().unwrap());
                 }
                 match func.as_str() {
-                    "fn" => Token::Fn,
-                    "let" => Token::Let,
-                    "undef" => Token::Undef,
+                    FN => Token::Fn,
+                    LET => Token::Let,
+                    UNDEF => Token::Undef,
                     _ => Token::Ident(func),
                 }
             }
@@ -119,23 +123,26 @@ mod tests {
     #[test]
     fn test_add() {
         let str = "1.3+3.2".chars().peekable();
-        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
-        assert_eq!(tokens, vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]);
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
+        assert_eq!(
+            tokenizer,
+            vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]
+        );
     }
 
     #[test]
     fn divide() {
         let str = "13/32".chars().peekable();
-        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
-            tokens,
+            tokenizer,
             vec![Token::Num(13.0), Token::Div, Token::Num(32.0),]
         );
 
         let str = "13.5/32.2".chars().peekable();
-        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
+        let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
-            tokens,
+            tokenizer,
             vec![Token::Num(13.5), Token::Div, Token::Num(32.2),]
         );
     }

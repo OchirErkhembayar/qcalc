@@ -63,9 +63,9 @@ impl<'ta> App<'ta> {
         file.read_to_string(&mut buf)
             .expect("Failed to read from RC file");
         buf.lines().for_each(|line| {
-            let mut tokens = Tokenizer::new(line.chars().peekable()).peekable();
-            if let Some(token) = tokens.next() {
-                let res = Parser::new(tokens, token)
+            let mut tokenizer = Tokenizer::new(line.chars().peekable()).peekable();
+            if let Some(token) = tokenizer.next() {
+                let res = Parser::new(tokenizer, token)
                     .parse()
                     .expect("Invalid syntax in RC file");
                 match res {
@@ -131,12 +131,12 @@ impl<'ta> App<'ta> {
 
     pub fn eval(&mut self) {
         let input = &self.input.lines()[0];
-        let mut tokens = Tokenizer::new(input.chars().peekable()).peekable();
-        if tokens.peek().is_none() {
+        let mut tokenizer = Tokenizer::new(input.chars().peekable()).peekable();
+        if tokenizer.peek().is_none() {
             return;
         }
-        let current = tokens.next().unwrap();
-        match Parser::new(tokens, current).parse() {
+        let current = tokenizer.next().unwrap();
+        match Parser::new(tokenizer, current).parse() {
             Ok(stmt) => {
                 if let Stmt::Expr(expr) = &stmt {
                     if !self.expr_history.contains(expr) {
