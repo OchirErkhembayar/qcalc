@@ -21,6 +21,7 @@ The software is provided "as is," without warranty of any kind, express or impli
 - Built in functions
 - Clearing past expressions
 - Resetting variables
+- Binary and hexadecimal inputs eg. "0xff + 0b10 / 10"
 
 #### Feature requests / Bug reports
 - Feel free to open an issue and i'll look into it
