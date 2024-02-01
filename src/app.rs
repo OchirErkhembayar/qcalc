@@ -302,4 +302,12 @@ mod tests {
         input_and_evaluate(&mut app, "foo(2, 3)");
         assert_output(&app, 17.0);
     }
+
+    #[test]
+    fn test_bin_hex() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "0x1f + 0b110 / 2");
+        assert_output(&app, 34.0);
+    }
 }
