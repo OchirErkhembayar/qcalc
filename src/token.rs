@@ -85,17 +85,49 @@ impl<'a> Iterator for Tokenizer<'a> {
             ')' => Token::RParen,
             '^' => Token::Power,
             '0'..='9' => {
-                let mut num = next.to_string();
-                while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
-                    num.push(self.input.next().unwrap());
-                }
-                if self.input.peek().is_some_and(|c| *c == '.') {
-                    num.push(self.input.next().unwrap());
+                // Check if it's hex
+                if next == '0'
+                    && self
+                        .input
+                        .peek()
+                        .is_some_and(|c| matches!(c, 'x' | 'X' | 'b' | 'B'))
+                {
+                    match self.input.next().unwrap() {
+                        'x' | 'X' => {
+                            let mut hex = String::new();
+                            while self.input.peek().is_some_and(|c| {
+                                c.is_numeric() || matches!(c, 'a'..='f' | 'A'..='F')
+                            }) {
+                                hex.push(self.input.next().unwrap());
+                            }
+                            Token::Num(i32::from_str_radix(&hex, 16).unwrap() as f64)
+                        }
+                        'b' | 'B' => {
+                            let mut hex = String::new();
+                            while self
+                                .input
+                                .peek()
+                                .is_some_and(|c| c.is_numeric() || matches!(c, '0' | '1'))
+                            {
+                                hex.push(self.input.next().unwrap());
+                            }
+                            Token::Num(i32::from_str_radix(&hex, 2).unwrap() as f64)
+                        }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    let mut num = next.to_string();
                     while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
                         num.push(self.input.next().unwrap());
                     }
+                    if self.input.peek().is_some_and(|c| *c == '.') {
+                        num.push(self.input.next().unwrap());
+                        while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
+                            num.push(self.input.next().unwrap());
+                        }
+                    }
+                    Token::Num(num.parse().unwrap())
                 }
-                Token::Num(num.parse().unwrap())
             }
             'A'..='Z' | 'a'..='z' => {
                 let mut func = next.to_string();
@@ -170,5 +202,21 @@ mod tests {
         let str = "10 + 5";
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
         assert_eq!(tokenizer.next(), Some(Token::Num(10.0)));
+    }
+
+    #[test]
+    fn test_hex() {
+        let str = "0x1ff";
+
+        let mut tokenizer = Tokenizer::new(str.chars().peekable());
+        assert_eq!(tokenizer.next(), Some(Token::Num(511.0)));
+    }
+
+    #[test]
+    fn test_bin() {
+        let str = "0b1100";
+
+        let mut tokenizer = Tokenizer::new(str.chars().peekable());
+        assert_eq!(tokenizer.next(), Some(Token::Num(12.0)));
     }
 }
