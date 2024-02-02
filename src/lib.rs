@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use interpreter::Interpreter;
+use interpreter::{Interpreter, Value};
 use parse::Parser;
 use ratatui::{prelude::CrosstermBackend, Terminal};
 use std::{error::Error, io};
@@ -44,7 +44,7 @@ pub fn tui() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn eval(input: &str) -> Result<f64, Box<dyn Error>> {
+pub fn eval(input: &str) -> Result<Value, Box<dyn Error>> {
     let mut tokenizer = Tokenizer::new(input.chars().peekable()).peekable();
     let current = tokenizer.next().ok_or("Expected expression")?;
     let stmt = Parser::new(tokenizer, current).parse()?;
@@ -52,7 +52,7 @@ pub fn eval(input: &str) -> Result<f64, Box<dyn Error>> {
     if let Some(ans) = res {
         Ok(ans)
     } else {
-        Ok(1_f64)
+        Ok(Value::Float(1_f64))
     }
 }
 

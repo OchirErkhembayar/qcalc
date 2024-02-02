@@ -9,7 +9,8 @@ const UNDEF: &str = "undef";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
-    Num(f64),
+    Float(f64),
+    Int(i64),
     Fn,
     Comma,
     Ident(String),
@@ -30,7 +31,8 @@ pub enum Token {
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Num(num) => inner_write(num, f),
+            Token::Float(float) => inner_write(float, f),
+            Token::Int(int) => inner_write(int, f),
             Token::Fn => inner_write(FN, f),
             Token::Undef => inner_write(UNDEF, f),
             Token::Comma => inner_write(',', f),
@@ -100,7 +102,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                             }) {
                                 hex.push(self.input.next().unwrap());
                             }
-                            Token::Num(i32::from_str_radix(&hex, 16).unwrap() as f64)
+                            Token::Int(i64::from_str_radix(&hex, 16).unwrap())
                         }
                         'b' | 'B' => {
                             let mut hex = String::new();
@@ -111,7 +113,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                             {
                                 hex.push(self.input.next().unwrap());
                             }
-                            Token::Num(i32::from_str_radix(&hex, 2).unwrap() as f64)
+                            Token::Int(i64::from_str_radix(&hex, 2).unwrap())
                         }
                         _ => unreachable!(),
                     }
@@ -125,8 +127,10 @@ impl<'a> Iterator for Tokenizer<'a> {
                         while self.input.peek().is_some_and(|c| c.is_ascii_digit()) {
                             num.push(self.input.next().unwrap());
                         }
+                        Token::Float(num.parse().unwrap())
+                    } else {
+                        Token::Int(num.parse().unwrap())
                     }
-                    Token::Num(num.parse().unwrap())
                 }
             }
             'A'..='Z' | 'a'..='z' => {
@@ -158,7 +162,7 @@ mod tests {
         let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
             tokenizer,
-            vec![Token::Num(1.3), Token::Plus, Token::Num(3.2),]
+            vec![Token::Float(1.3), Token::Plus, Token::Float(3.2),]
         );
     }
 
@@ -166,16 +170,13 @@ mod tests {
     fn divide() {
         let str = "13/32".chars().peekable();
         let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
-        assert_eq!(
-            tokenizer,
-            vec![Token::Num(13.0), Token::Div, Token::Num(32.0),]
-        );
+        assert_eq!(tokenizer, vec![Token::Int(13), Token::Div, Token::Int(32),]);
 
         let str = "13.5/32.2".chars().peekable();
         let tokenizer = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
             tokenizer,
-            vec![Token::Num(13.5), Token::Div, Token::Num(32.2),]
+            vec![Token::Float(13.5), Token::Div, Token::Float(32.2),]
         );
     }
 
@@ -186,13 +187,13 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                Token::Num(13.5),
+                Token::Float(13.5),
                 Token::Plus,
-                Token::Num(12.5),
+                Token::Float(12.5),
                 Token::Mult,
-                Token::Num(30.5),
+                Token::Float(30.5),
                 Token::Mult,
-                Token::Num(10.0)
+                Token::Int(10)
             ]
         );
     }
@@ -201,7 +202,7 @@ mod tests {
     fn test_tokenizer() {
         let str = "10 + 5";
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
-        assert_eq!(tokenizer.next(), Some(Token::Num(10.0)));
+        assert_eq!(tokenizer.next(), Some(Token::Int(10)));
     }
 
     #[test]
@@ -209,7 +210,7 @@ mod tests {
         let str = "0x1ff";
 
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
-        assert_eq!(tokenizer.next(), Some(Token::Num(511.0)));
+        assert_eq!(tokenizer.next(), Some(Token::Int(511)));
     }
 
     #[test]
@@ -217,6 +218,6 @@ mod tests {
         let str = "0b1100";
 
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
-        assert_eq!(tokenizer.next(), Some(Token::Num(12.0)));
+        assert_eq!(tokenizer.next(), Some(Token::Int(12)));
     }
 }

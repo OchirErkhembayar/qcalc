@@ -79,7 +79,8 @@ pub enum Func {
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
-    Num(f64),
+    Float(f64),
+    Int(i64),
     Negative(Box<Expr>),
     Abs(Box<Expr>),
     Exponent(Box<Expr>, Box<Expr>),
@@ -91,7 +92,8 @@ pub enum Expr {
 impl Expr {
     pub fn format(&self) -> String {
         match self {
-            Self::Num(num) => num.to_string(),
+            Self::Float(float) => float.to_string(),
+            Self::Int(int) => int.to_string(),
             Self::Negative(expr) => format!("-{}", expr.format()),
             Self::Grouping(expr) => format!("({})", expr.format()),
             Self::Abs(expr) => format!("|{}|", expr.format()),
@@ -317,70 +319,83 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseErr> {
-        if let Token::Num(num) = *self.peek() {
-            self.advance();
-            return Ok(Expr::Num(num));
-        }
-        if let Token::LParen = *self.peek() {
-            self.advance();
-            let expr = Box::new(self.expression()?);
-            self.consume(Token::RParen, "Missing closing parentheses")?;
-            return Ok(Expr::Grouping(expr));
-        }
-        if let Token::Pipe = *self.peek() {
-            self.advance();
-            let expr = Box::new(self.expression()?);
-            self.consume(Token::Pipe, "Missing closing pipe")?;
-            return Ok(Expr::Abs(expr));
-        }
-        if let Token::Ident(func) = self.peek() {
-            let func = func.to_owned();
-            self.advance();
-            let func = match func.as_str() {
-                SIN => Func::Sin,
-                SINH => Func::Sinh,
-                ASIN => Func::Asin,
-                ASINH => Func::Asinh,
-                COS => Func::Cos,
-                COSH => Func::Cosh,
-                ACOS => Func::Acos,
-                ACOSH => Func::Acosh,
-                TAN => Func::Tan,
-                TANH => Func::Tanh,
-                ATAN => Func::Atan,
-                ATANH => Func::Atanh,
-                LN => Func::Ln,
-                LOG => {
-                    if let Token::Num(base) = self.advance() {
-                        Func::Log(base)
-                    } else {
-                        return Err(ParseErr::new(
-                            self.peek().clone(),
-                            "Missing base for log function",
-                        ));
+        match self.peek() {
+            Token::Float(float) => {
+                let res = Ok(Expr::Float(*float));
+                self.advance();
+                res
+            }
+            Token::Int(int) => {
+                let res = Ok(Expr::Int(*int));
+                self.advance();
+                res
+            }
+            Token::LParen => {
+                self.advance();
+                let expr = Box::new(self.expression()?);
+                self.consume(Token::RParen, "Missing closing parentheses")?;
+                Ok(Expr::Grouping(expr))
+            }
+            Token::Pipe => {
+                self.advance();
+                let expr = Box::new(self.expression()?);
+                self.consume(Token::Pipe, "Missing closing pipe")?;
+                Ok(Expr::Abs(expr))
+            }
+            Token::Ident(func) => {
+                let func = func.to_owned();
+                self.advance();
+                let func = match func.as_str() {
+                    SIN => Func::Sin,
+                    SINH => Func::Sinh,
+                    ASIN => Func::Asin,
+                    ASINH => Func::Asinh,
+                    COS => Func::Cos,
+                    COSH => Func::Cosh,
+                    ACOS => Func::Acos,
+                    ACOSH => Func::Acosh,
+                    TAN => Func::Tan,
+                    TANH => Func::Tanh,
+                    ATAN => Func::Atan,
+                    ATANH => Func::Atanh,
+                    LN => Func::Ln,
+                    LOG => {
+                        if matches!(self.peek(), Token::Float(_) | Token::Int(_)) {
+                            let base = match self.advance() {
+                                Token::Float(float) => float,
+                                Token::Int(int) => int as f64,
+                                _ => unreachable!(),
+                            };
+                            Func::Log(base)
+                        } else {
+                            return Err(ParseErr::new(
+                                self.peek().clone(),
+                                "Missing base for log function",
+                            ));
+                        }
                     }
-                }
-                DEGS => Func::Degs,
-                RADS => Func::Rads,
-                SQ => Func::Sq,
-                SQRT => Func::Sqrt,
-                CUBE => Func::Cube,
-                CBRT => Func::Cbrt,
-                ROUND => Func::Round,
-                CEIL => Func::Ceil,
-                FLOOR => Func::Floor,
-                EXP => Func::Exp,
-                EXP2 => Func::Exp2,
-                FRACT => Func::Fract,
-                RECIP => Func::Recip,
-                _ => return Ok(Expr::Var(func)),
-            };
-            self.consume(Token::LParen, "Missing opening parentheses")?;
-            let arg = Box::new(self.expression()?);
-            self.consume(Token::RParen, "Missing closing parentheses")?;
-            return Ok(Expr::Func(func, arg));
+                    DEGS => Func::Degs,
+                    RADS => Func::Rads,
+                    SQ => Func::Sq,
+                    SQRT => Func::Sqrt,
+                    CUBE => Func::Cube,
+                    CBRT => Func::Cbrt,
+                    ROUND => Func::Round,
+                    CEIL => Func::Ceil,
+                    FLOOR => Func::Floor,
+                    EXP => Func::Exp,
+                    EXP2 => Func::Exp2,
+                    FRACT => Func::Fract,
+                    RECIP => Func::Recip,
+                    _ => return Ok(Expr::Var(func)),
+                };
+                self.consume(Token::LParen, "Missing opening parentheses")?;
+                let arg = Box::new(self.expression()?);
+                self.consume(Token::RParen, "Missing closing parentheses")?;
+                Ok(Expr::Func(func, arg))
+            }
+            _ => Err(ParseErr::new(self.peek().clone(), "Expected expression")),
         }
-        Err(ParseErr::new(self.peek().clone(), "Expected expression"))
     }
 }
 
@@ -451,11 +466,7 @@ mod tests {
 
     #[test]
     fn simple_add() {
-        let expr = Expr::Binary(
-            Box::new(Expr::Num(10.0)),
-            Token::Plus,
-            Box::new(Expr::Num(5.0)),
-        );
+        let expr = Expr::Binary(Box::new(Expr::Int(10)), Token::Plus, Box::new(Expr::Int(5)));
 
         check("10 + 5", expr);
     }
@@ -463,24 +474,24 @@ mod tests {
     #[test]
     fn simple_mult() {
         let expr = Expr::Binary(
-            Box::new(Expr::Num(20.0)),
+            Box::new(Expr::Float(20.5)),
             Token::Mult,
-            Box::new(Expr::Num(5.0)),
+            Box::new(Expr::Float(5.1)),
         );
 
-        check("20 * 5", expr);
+        check("20.5 * 5.1", expr);
     }
 
     #[test]
     fn grouping() {
         let expr = Expr::Binary(
             Box::new(Expr::Grouping(Box::new(Expr::Binary(
-                Box::new(Expr::Num(1.0)),
+                Box::new(Expr::Int(1)),
                 Token::Plus,
-                Box::new(Expr::Num(2.0)),
+                Box::new(Expr::Int(2)),
             )))),
             Token::Mult,
-            Box::new(Expr::Num(5.0)),
+            Box::new(Expr::Int(5)),
         );
 
         check("(1 + 2) * 5", expr);
@@ -490,10 +501,10 @@ mod tests {
     fn negative() {
         let expr = Expr::Binary(
             Box::new(Expr::Negative(Box::new(Expr::Grouping(Box::new(
-                Expr::Num(5.0),
+                Expr::Int(5),
             ))))),
             Token::Div,
-            Box::new(Expr::Num(1.0)),
+            Box::new(Expr::Int(1)),
         );
 
         check("-(5) / 1", expr);
@@ -539,7 +550,7 @@ mod tests {
             Expr::Binary(
                 Box::new(Expr::Var("y".to_string())),
                 Token::Plus,
-                Box::new(Expr::Num(1.0)),
+                Box::new(Expr::Int(1)),
             ),
         );
 
@@ -565,10 +576,19 @@ mod tests {
     fn test_assignment() {
         let expected = Stmt::Assign(
             "foo".to_string(),
-            Expr::Func(Func::Sq, Box::new(Expr::Num(2.0))),
+            Expr::Func(Func::Sq, Box::new(Expr::Float(2.0))),
         );
 
         let mut tokenizer = Tokenizer::new("let foo = sq(2.0)".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn integer_base_log() {
+        let expected = Stmt::Expr(Expr::Func(Func::Log(10.0), Box::new(Expr::Int(1000))));
+
+        let mut tokenizer = Tokenizer::new("log10(1000)".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }
