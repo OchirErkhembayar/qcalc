@@ -11,7 +11,7 @@ use ratatui::{
 use tui_textarea::{Input, TextArea};
 
 use crate::{
-    interpreter::{Interpreter, Stmt, Value},
+    interpreter::{Interpreter, Stmt},
     parse::{Expr, Parser},
     token::Tokenizer,
 };
@@ -75,9 +75,9 @@ impl<'ta> App<'ta> {
                     Stmt::Assign(name, expr) => {
                         self.interpreter.define(
                             name,
-                            Value::Num(self.interpreter.interpret_expr(&expr).unwrap_or_else(
-                                |_| panic!("RC file: {} not found", &self.rc_file.display()),
-                            )),
+                            self.interpreter.interpret_expr(&expr).unwrap_or_else(|_| {
+                                panic!("RC file: {} not found", &self.rc_file.display())
+                            }),
                         );
                     }
                     _ => {}

@@ -3,7 +3,7 @@ use std::{
     error::Error,
     f64::consts::{E, PI},
     fmt::Display,
-    ops::Neg,
+    ops::{Add, Div, Mul, Neg, Rem, Sub},
 };
 
 use crate::{
@@ -25,16 +25,18 @@ pub enum Stmt {
     Undef(Vec<String>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Fn(Function),
-    Num(f64),
+    Float(f64),
+    Int(i64),
 }
 
 impl Value {
     pub fn to_input(&self, name: &str) -> String {
         match self {
-            Self::Num(num) => format!("let {} = {}", name, num),
+            Self::Float(float) => format!("let {} = {}", name, float),
+            Self::Int(int) => format!("let {} = {}", name, int),
             Self::Fn(func) => format!(
                 "fn {}({}) {}",
                 name,
@@ -43,9 +45,27 @@ impl Value {
             ),
         }
     }
+
+    fn abs(&mut self) -> Self {
+        match self {
+            Value::Int(int) => Value::Int(int.abs()),
+            Value::Float(float) => Value::Float(float.abs()),
+            _ => unreachable!(),
+        }
+    }
+
+    fn pow(&self, exponent: Value) -> Value {
+        match (self, exponent) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs.pow(rhs as u32)),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs.powf(rhs)),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float((*lhs as f64).powf(rhs)),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs.powi(rhs as i32)),
+            _ => panic!("Cannot sub non numeric types"),
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     closure: HashMap<String, Value>,
     parameters: Vec<String>,
@@ -71,7 +91,7 @@ impl Function {
         }
     }
 
-    fn call(&self, args: Vec<Value>) -> Result<f64, InterpretError> {
+    fn call(&self, args: Vec<Value>) -> Result<Value, InterpretError> {
         let mut interpreter = Interpreter::with_env(self.closure.clone());
         args.into_iter()
             .enumerate()
@@ -87,16 +107,16 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmt: Stmt) -> Result<Option<f64>, InterpretError> {
+    pub fn interpret(&mut self, stmt: Stmt) -> Result<Option<Value>, InterpretError> {
         match stmt {
             Stmt::Assign(name, expr) => {
                 let val = self.interpret_expr(&expr)?;
-                self.env.insert(name, Value::Num(val));
+                self.env.insert(name, val.clone()); // Some way to remove this clone?
                 Ok(Some(val))
             }
             Stmt::Expr(expr) => {
                 let ans = self.interpret_expr(&expr)?;
-                self.env.insert("ans".to_string(), Value::Num(ans));
+                self.env.insert("ans".to_string(), ans.clone()); // Some way to remove this clone?
                 Ok(Some(ans))
             }
             Stmt::Fn(name, params, body) => {
@@ -117,8 +137,8 @@ impl Interpreter {
 
     fn default_env() -> HashMap<String, Value> {
         HashMap::from_iter([
-            ("pi".to_string(), Value::Num(PI)),
-            ("e".to_string(), Value::Num(E)),
+            ("pi".to_string(), Value::Float(PI)),
+            ("e".to_string(), Value::Float(E)),
         ])
     }
 
@@ -133,9 +153,10 @@ impl Interpreter {
         );
     }
 
-    pub fn interpret_expr(&self, expr: &Expr) -> Result<f64, InterpretError> {
+    pub fn interpret_expr(&self, expr: &Expr) -> Result<Value, InterpretError> {
         match expr {
-            Expr::Num(num) => Ok(*num),
+            Expr::Float(float) => Ok(Value::Float(*float)),
+            Expr::Int(int) => Ok(Value::Int(*int)),
             Expr::Binary(left, operator, right) => {
                 let left = self.interpret_expr(left)?;
                 let right = self.interpret_expr(right)?;
@@ -152,9 +173,11 @@ impl Interpreter {
             Expr::Abs(expr) => Ok(self.interpret_expr(expr)?.abs()),
             Expr::Grouping(expr) => self.interpret_expr(expr),
             Expr::Negative(expr) => Ok(self.interpret_expr(expr)?.neg()),
-            Expr::Exponent(base, exponent) => Ok(self
-                .interpret_expr(base)?
-                .powf(self.interpret_expr(exponent)?)),
+            Expr::Exponent(base, exponent) => {
+                let base = self.interpret_expr(base)?;
+                let exponent = self.interpret_expr(exponent)?;
+                Ok(base.pow(exponent))
+            }
             Expr::Call(name, args) => {
                 if let Some(Value::Fn(func)) = self.env.get(name) {
                     if args.len() != func.arity {
@@ -166,7 +189,7 @@ impl Interpreter {
                     } else {
                         let mut vals = vec![];
                         for arg in args.iter() {
-                            vals.push(Value::Num(self.interpret_expr(arg)?));
+                            vals.push(self.interpret_expr(arg)?);
                         }
                         func.call(vals)
                     }
@@ -178,14 +201,18 @@ impl Interpreter {
                 if let Some(val) = self.env.get(var) {
                     match val {
                         Value::Fn(_) => Err(InterpretError::UnInvokedFunction(var.clone())),
-                        Value::Num(num) => Ok(*num),
+                        Value::Float(_) | Value::Int(_) => Ok(val.to_owned()),
                     }
                 } else {
                     Err(InterpretError::UnknownVariable(var.clone()))
                 }
             }
             Expr::Func(func, arg) => {
-                let arg = self.interpret_expr(arg)?;
+                let arg = match self.interpret_expr(arg)? {
+                    Value::Float(float) => float,
+                    Value::Int(int) => int as f64,
+                    _ => unreachable!(),
+                };
                 let val = match func {
                     Func::Sin => arg.sin(),
                     Func::Sinh => arg.sinh(),
@@ -215,12 +242,16 @@ impl Interpreter {
                     Func::Fract => arg.fract(),
                     Func::Recip => arg.recip(),
                 };
-                Ok(val)
+                Ok(Value::Float(val))
             }
         }
         .map(|n| {
-            if (n.round() - n).abs() < 1e-10 {
-                n.round()
+            if let Value::Float(n) = n {
+                if (n.round() - n).abs() < 1e-10 {
+                    Value::Float(n.round())
+                } else {
+                    Value::Float(n)
+                }
             } else {
                 n
             }
@@ -263,8 +294,91 @@ impl Display for InterpretError {
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Num(num) => inner_write(num, f),
+            Self::Float(float) => inner_write(float, f),
+            Self::Int(int) => inner_write(int, f),
             Self::Fn(func) => inner_write(func, f),
+        }
+    }
+}
+
+impl Add for Value {
+    type Output = Value;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs + rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + rhs as f64),
+            _ => panic!("Cannot add non numeric types"),
+        }
+    }
+}
+
+impl Sub for Value {
+    type Output = Value;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs - rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs - rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 - rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs - rhs as f64),
+            _ => panic!("Cannot sub non numeric types"),
+        }
+    }
+}
+
+impl Mul for Value {
+    type Output = Value;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs * rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs * rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 * rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs * rhs as f64),
+            _ => panic!("Cannot mul non numeric types"),
+        }
+    }
+}
+
+impl Div for Value {
+    type Output = Value;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Float(lhs as f64 / rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs / rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 / rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs / rhs as f64),
+            _ => panic!("Cannot divide non numeric types"),
+        }
+    }
+}
+
+impl Neg for Value {
+    type Output = Value;
+
+    fn neg(self) -> Self::Output {
+        match &self {
+            Value::Int(int) => Value::Int(-*int),
+            Value::Float(float) => Value::Float(-*float),
+            _ => panic!("Cannot negate non numeric types"),
+        }
+    }
+}
+
+impl Rem for Value {
+    type Output = Value;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Float(lhs as f64 % rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs % rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 % rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs % rhs as f64),
+            _ => panic!("Cannot calculate rem of non numeric types"),
         }
     }
 }
@@ -279,7 +393,7 @@ impl Display for Function {
 mod tests {
     use super::*;
 
-    fn check(expr: Expr, expected: Result<f64, InterpretError>) {
+    fn check(expr: Expr, expected: Result<Value, InterpretError>) {
         let interpreter = Interpreter::new();
         let res = interpreter.interpret_expr(&expr);
         assert_eq!(res, expected);
@@ -287,7 +401,7 @@ mod tests {
 
     fn check_with_vars(
         expr: Expr,
-        expected: Result<f64, InterpretError>,
+        expected: Result<Value, InterpretError>,
         env: HashMap<String, Value>,
     ) {
         let interpreter = Interpreter::with_env(env);
@@ -299,11 +413,11 @@ mod tests {
     fn simple_add() {
         check(
             Expr::Binary(
-                Box::new(Expr::Num(1.1)),
+                Box::new(Expr::Float(1.1)),
                 Token::Plus,
-                Box::new(Expr::Num(5.0)),
+                Box::new(Expr::Float(5.0)),
             ),
-            Ok(6.1),
+            Ok(Value::Float(6.1)),
         );
     }
 
@@ -311,12 +425,12 @@ mod tests {
     fn simple_variable() {
         check_with_vars(
             Expr::Binary(
-                Box::new(Expr::Num(12.0)),
+                Box::new(Expr::Float(12.0)),
                 Token::Mult,
                 Box::new(Expr::Var("foo".to_string())),
             ),
-            Ok(144.0),
-            HashMap::from_iter([("foo".to_string(), Value::Num(12.0))]),
+            Ok(Value::Float(144.0)),
+            HashMap::from_iter([("foo".to_string(), Value::Float(12.0))]),
         );
     }
 
@@ -324,7 +438,7 @@ mod tests {
     fn function_with_closure() {
         check_with_vars(
             Expr::Call("foo".to_string(), vec![Expr::Var("bar".to_string())]),
-            Ok(27.0),
+            Ok(Value::Float(27.0)),
             HashMap::from_iter([
                 (
                     "foo".to_string(),
@@ -333,15 +447,15 @@ mod tests {
                         Expr::Binary(
                             Box::new(Expr::Exponent(
                                 Box::new(Expr::Var("x".to_string())),
-                                Box::new(Expr::Num(2.0)),
+                                Box::new(Expr::Float(2.0)),
                             )),
                             Token::Plus,
                             Box::new(Expr::Var("bar".to_string())),
                         ),
-                        HashMap::from_iter([("bar".to_string(), Value::Num(2.0))]),
+                        HashMap::from_iter([("bar".to_string(), Value::Float(2.0))]),
                     )),
                 ),
-                ("bar".to_string(), Value::Num(5.0)), // The function uses the closure value
+                ("bar".to_string(), Value::Int(5)), // The function uses the closure value
             ]),
         );
     }
