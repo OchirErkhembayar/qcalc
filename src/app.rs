@@ -310,4 +310,24 @@ mod tests {
         input_and_evaluate(&mut app, "0x1f + 0b110 / 2");
         assert_output(&app, 34.0);
     }
+
+    #[test]
+    fn test_bitwise_operators() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "0b1010 & 0b0111");
+        assert_output(&app, 0b0010 as f64);
+
+        input_and_evaluate(&mut app, "0b1010 | 0b0111");
+        assert_output(&app, 0b1111 as f64);
+
+        input_and_evaluate(&mut app, "0b1010 ^ 0b0111");
+        assert_output(&app, 0b1101 as f64);
+
+        input_and_evaluate(&mut app, "!45");
+        assert_output(&app, -46 as f64);
+
+        input_and_evaluate(&mut app, "0b11 | 0x1 << 2");
+        assert_output(&app, 7 as f64);
+    }
 }

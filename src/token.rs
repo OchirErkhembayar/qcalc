@@ -17,15 +17,19 @@ pub enum Token {
     Let,
     Undef,
     Eq,
-    Pipe,
+    BitOr,
     Mod,
     Div,
     Mult,
     Plus,
     Minus,
+    Not,
     RParen,
     LParen,
-    Power,
+    BitAnd,
+    BitXor,
+    Shr,
+    Shl,
 }
 
 impl std::fmt::Display for Token {
@@ -39,15 +43,19 @@ impl std::fmt::Display for Token {
             Token::Ident(ident) => inner_write(ident, f),
             Token::Let => inner_write(LET, f),
             Token::Eq => inner_write('=', f),
-            Token::Pipe => inner_write('|', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
             Token::Div => inner_write('/', f),
             Token::Plus => inner_write('+', f),
             Token::Minus => inner_write('-', f),
+            Token::Not => inner_write('!', f),
+            Token::BitOr => inner_write('|', f),
+            Token::BitAnd => inner_write('&', f),
+            Token::BitXor => inner_write('^', f),
             Token::LParen => inner_write('(', f),
             Token::RParen => inner_write(')', f),
-            Token::Power => inner_write('^', f),
+            Token::Shr => inner_write(">>", f),
+            Token::Shl => inner_write("<<", f),
         }
     }
 }
@@ -75,17 +83,27 @@ impl<'a> Iterator for Tokenizer<'a> {
                 }
                 return self.next();
             }
+            '>' => match self.input.next() {
+                Some('>') => Token::Shr,
+                _ => Token::Ident("<".to_string()),
+            },
+            '<' => match self.input.next() {
+                Some('<') => Token::Shl,
+                _ => Token::Ident("<".to_string()),
+            },
             ',' => Token::Comma,
             '=' => Token::Eq,
-            '|' => Token::Pipe,
             '/' => Token::Div,
             '+' => Token::Plus,
             '-' => Token::Minus,
             '%' => Token::Mod,
             '*' => Token::Mult,
+            '!' => Token::Not,
+            '&' => Token::BitAnd,
+            '^' => Token::BitXor,
+            '|' => Token::BitOr,
             '(' => Token::LParen,
             ')' => Token::RParen,
-            '^' => Token::Power,
             '0'..='9' => {
                 // Check if it's hex
                 if next == '0'

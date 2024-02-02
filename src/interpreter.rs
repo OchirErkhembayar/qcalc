@@ -3,7 +3,7 @@ use std::{
     error::Error,
     f64::consts::{E, PI},
     fmt::Display,
-    ops::{Add, Div, Mul, Neg, Rem, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
 };
 
 use crate::{
@@ -46,21 +46,11 @@ impl Value {
         }
     }
 
-    fn abs(&mut self) -> Self {
+    fn abs(&self) -> Self {
         match self {
             Value::Int(int) => Value::Int(int.abs()),
             Value::Float(float) => Value::Float(float.abs()),
             _ => unreachable!(),
-        }
-    }
-
-    fn pow(&self, exponent: Value) -> Value {
-        match (self, exponent) {
-            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs.pow(rhs as u32)),
-            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs.powf(rhs)),
-            (Value::Int(lhs), Value::Float(rhs)) => Value::Float((*lhs as f64).powf(rhs)),
-            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs.powi(rhs as i32)),
-            _ => panic!("Cannot sub non numeric types"),
         }
     }
 }
@@ -79,6 +69,7 @@ pub enum InterpretError {
     UnknownFunction(String),
     UnInvokedFunction(String),
     WrongArity(String, usize, usize),
+    InvalidArgument(String),
 }
 
 impl Function {
@@ -166,18 +157,21 @@ impl Interpreter {
                     Token::Mult => left * right,
                     Token::Div => left / right,
                     Token::Mod => left % right,
+                    Token::BitAnd => (left & right)?,
+                    Token::BitOr => (left | right)?,
+                    Token::BitXor => (left ^ right)?,
+                    Token::Shl => (left << right)?,
+                    Token::Shr => (left >> right)?,
                     _ => unreachable!(),
                 };
                 Ok(val)
             }
-            Expr::Abs(expr) => Ok(self.interpret_expr(expr)?.abs()),
             Expr::Grouping(expr) => self.interpret_expr(expr),
-            Expr::Negative(expr) => Ok(self.interpret_expr(expr)?.neg()),
-            Expr::Exponent(base, exponent) => {
-                let base = self.interpret_expr(base)?;
-                let exponent = self.interpret_expr(exponent)?;
-                Ok(base.pow(exponent))
-            }
+            Expr::Unary(expr, operator) => match operator {
+                Token::Not => self.interpret_expr(expr)?.not(),
+                Token::Minus => Ok(self.interpret_expr(expr)?.neg()),
+                _ => unreachable!(),
+            },
             Expr::Call(name, args) => {
                 if let Some(Value::Fn(func)) = self.env.get(name) {
                     if args.len() != func.arity {
@@ -208,12 +202,15 @@ impl Interpreter {
                 }
             }
             Expr::Func(func, arg) => {
-                let arg = match self.interpret_expr(arg)? {
+                let val = self.interpret_expr(arg)?;
+                let arg = match val {
                     Value::Float(float) => float,
                     Value::Int(int) => int as f64,
                     _ => unreachable!(),
                 };
                 let val = match func {
+                    Func::Abs => return Ok(val.abs()),
+                    Func::Pow(exp) => arg.powf(*exp),
                     Func::Sin => arg.sin(),
                     Func::Sinh => arg.sinh(),
                     Func::Asin => arg.asin(),
@@ -282,6 +279,7 @@ impl Display for InterpretError {
                 Self::UnknownVariable(v) => format!("Unknown variable {}", v),
                 Self::UnknownFunction(f) => format!("Unknown function {}", f),
                 Self::UnInvokedFunction(f) => format!("Uninvoked function {}", f),
+                Self::InvalidArgument(m) => m.clone(),
                 Self::WrongArity(name, actual, expected) => format!(
                     "Function {} takes {} arguments but {} were provided",
                     name, expected, actual
@@ -383,6 +381,84 @@ impl Rem for Value {
     }
 }
 
+impl BitAnd for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Ok(Value::Int(lhs & rhs)),
+            _ => Err(InterpretError::InvalidArgument(
+                "& cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
+impl BitXor for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Ok(Value::Int(lhs ^ rhs)),
+            _ => Err(InterpretError::InvalidArgument(
+                "^ cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
+impl BitOr for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Ok(Value::Int(lhs | rhs)),
+            _ => Err(InterpretError::InvalidArgument(
+                "| cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
+impl Shl for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn shl(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Ok(Value::Int(lhs << rhs)),
+            _ => Err(InterpretError::InvalidArgument(
+                "<< cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
+impl Shr for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn shr(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Ok(Value::Int(lhs >> rhs)),
+            _ => Err(InterpretError::InvalidArgument(
+                ">> cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
+impl Not for Value {
+    type Output = Result<Value, InterpretError>;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Value::Int(int) => Ok(Value::Int(!int)),
+            _ => Err(InterpretError::InvalidArgument(
+                "! cannot be applied to this data type".to_string(),
+            )),
+        }
+    }
+}
+
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}) {}", self.parameters.join(", "), self.body)
@@ -438,21 +514,22 @@ mod tests {
     fn function_with_closure() {
         check_with_vars(
             Expr::Call("foo".to_string(), vec![Expr::Var("bar".to_string())]),
-            Ok(Value::Float(27.0)),
+            Ok(Value::Int(12)),
             HashMap::from_iter([
                 (
                     "foo".to_string(),
                     Value::Fn(Function::new(
                         vec!["x".to_string()],
                         Expr::Binary(
-                            Box::new(Expr::Exponent(
+                            Box::new(Expr::Binary(
                                 Box::new(Expr::Var("x".to_string())),
-                                Box::new(Expr::Float(2.0)),
+                                Token::Mult,
+                                Box::new(Expr::Int(2)),
                             )),
                             Token::Plus,
                             Box::new(Expr::Var("bar".to_string())),
                         ),
-                        HashMap::from_iter([("bar".to_string(), Value::Float(2.0))]),
+                        HashMap::from_iter([("bar".to_string(), Value::Int(2))]),
                     )),
                 ),
                 ("bar".to_string(), Value::Int(5)), // The function uses the closure value
