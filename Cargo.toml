@@ -1,6 +1,6 @@
 [package]
 name = "qcalc"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 authors = ["ochir <ochir_erkhembayar@yahoo.com>"]
 description = """
@@ -20,7 +20,7 @@ include = [
 ]
 
 [dependencies]
-crossterm = "0.27.0"
-dirs-next = "2.0.0"
-ratatui = "0.25.0"
-tui-textarea = "0.4.0"
+crossterm = ">=0.27.0"
+dirs-next = ">=2.0.0"
+ratatui = ">=0.25.0"
+tui-textarea = ">=0.4.0"
