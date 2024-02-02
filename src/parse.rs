@@ -7,6 +7,8 @@ const COS: &str = "cos";
 const COSH: &str = "cosh";
 const ACOS: &str = "acos";
 const ACOSH: &str = "acosh";
+const ABS: &str = "abs";
+const POW: &str = "pow";
 const SIN: &str = "sin";
 const SINH: &str = "sinh";
 const ASIN: &str = "asin";
@@ -46,6 +48,8 @@ pub struct ParseErr {
 // "Built in" functions, separate of user defined functions
 #[derive(Debug, PartialEq, Clone)]
 pub enum Func {
+    Abs,
+    Pow(f64),
     Sin,
     Sinh,
     Asin,
@@ -81,9 +85,7 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Float(f64),
     Int(i64),
-    Negative(Box<Expr>),
-    Abs(Box<Expr>),
-    Exponent(Box<Expr>, Box<Expr>),
+    Unary(Box<Expr>, Token),
     Call(String, Vec<Expr>),
     Func(Func, Box<Expr>),
     Var(String),
@@ -94,9 +96,8 @@ impl Expr {
         match self {
             Self::Float(float) => float.to_string(),
             Self::Int(int) => int.to_string(),
-            Self::Negative(expr) => format!("-{}", expr.format()),
+            Self::Unary(expr, operator) => format!("{}{}", operator, expr.format()),
             Self::Grouping(expr) => format!("({})", expr.format()),
-            Self::Abs(expr) => format!("|{}|", expr.format()),
             Self::Var(var) => var.to_string(),
             Self::Binary(left, operator, right) => {
                 format!("{}{}{}", left.format(), operator, right.format())
@@ -111,7 +112,6 @@ impl Expr {
                         .join(", ")
                 )
             }
-            Self::Exponent(base, exponent) => format!("{}^{}", base.format(), exponent.format()),
             Self::Func(func, argument) => format!("{}({})", func, argument.format()),
         }
     }
@@ -249,7 +249,27 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr, ParseErr> {
-        self.term()
+        self.bit_binary()
+    }
+
+    fn bit_binary(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.bit_shift()?;
+        while matches!(*self.peek(), Token::BitOr | Token::BitXor | Token::BitAnd) {
+            let operator = self.advance();
+            let right = self.bit_shift()?;
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right))
+        }
+        Ok(expr)
+    }
+
+    fn bit_shift(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.term()?;
+        while matches!(*self.peek(), Token::Shr | Token::Shl) {
+            let operator = self.advance();
+            let right = self.term()?;
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+        Ok(expr)
     }
 
     fn term(&mut self) -> Result<Expr, ParseErr> {
@@ -263,33 +283,23 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.exponent()?;
+        let mut expr = self.unary()?;
         while *self.peek() == Token::Div
             || *self.peek() == Token::Mult
             || *self.peek() == Token::Mod
         {
             let operator = self.advance();
-            let right = self.exponent()?;
+            let right = self.unary()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
         Ok(expr)
     }
 
-    fn exponent(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.negative()?;
-        while *self.peek() == Token::Power {
-            self.advance();
-            let right = self.negative()?;
-            expr = Expr::Exponent(Box::new(expr), Box::new(right));
-        }
-        Ok(expr)
-    }
-
-    fn negative(&mut self) -> Result<Expr, ParseErr> {
-        if *self.peek() == Token::Minus {
-            self.advance();
-            let right = self.negative()?;
-            Ok(Expr::Negative(Box::new(right)))
+    fn unary(&mut self) -> Result<Expr, ParseErr> {
+        if matches!(*self.peek(), Token::Minus | Token::Not) {
+            let operator = self.advance();
+            let right = self.unary()?;
+            Ok(Expr::Unary(Box::new(right), operator))
         } else {
             self.call()
         }
@@ -336,16 +346,26 @@ impl<'a> Parser<'a> {
                 self.consume(Token::RParen, "Missing closing parentheses")?;
                 Ok(Expr::Grouping(expr))
             }
-            Token::Pipe => {
-                self.advance();
-                let expr = Box::new(self.expression()?);
-                self.consume(Token::Pipe, "Missing closing pipe")?;
-                Ok(Expr::Abs(expr))
-            }
             Token::Ident(func) => {
                 let func = func.to_owned();
                 self.advance();
                 let func = match func.as_str() {
+                    ABS => Func::Abs,
+                    POW => {
+                        if matches!(self.peek(), Token::Float(_) | Token::Int(_)) {
+                            let base = match self.advance() {
+                                Token::Float(float) => float,
+                                Token::Int(int) => int as f64,
+                                _ => unreachable!(),
+                            };
+                            Func::Pow(base)
+                        } else {
+                            return Err(ParseErr::new(
+                                self.peek().clone(),
+                                "Missing exponent for pow function",
+                            ));
+                        }
+                    }
                     SIN => Func::Sin,
                     SINH => Func::Sinh,
                     ASIN => Func::Asin,
@@ -419,6 +439,8 @@ impl Display for Func {
             f,
             "{}",
             match self {
+                Func::Abs => ABS,
+                Func::Pow(exp) => return inner_write(format!("pow({})", exp), f),
                 Func::Sin => SIN,
                 Func::Sinh => SINH,
                 Func::Asin => ASIN,
@@ -500,9 +522,10 @@ mod tests {
     #[test]
     fn negative() {
         let expr = Expr::Binary(
-            Box::new(Expr::Negative(Box::new(Expr::Grouping(Box::new(
-                Expr::Int(5),
-            ))))),
+            Box::new(Expr::Unary(
+                Box::new(Expr::Grouping(Box::new(Expr::Int(5)))),
+                Token::Minus,
+            )),
             Token::Div,
             Box::new(Expr::Int(1)),
         );
