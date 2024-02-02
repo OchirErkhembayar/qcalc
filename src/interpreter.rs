@@ -53,6 +53,16 @@ impl Value {
             _ => unreachable!(),
         }
     }
+
+    fn pow(&self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs.pow(rhs as u32)),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs.powf(rhs)),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float((*lhs as f64).powf(rhs)),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs.powi(rhs as i32)),
+            _ => panic!("Cannot add non numeric types"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -162,6 +172,7 @@ impl Interpreter {
                     Token::BitXor => (left ^ right)?,
                     Token::Shl => (left << right)?,
                     Token::Shr => (left >> right)?,
+                    Token::Pow => left.pow(right),
                     _ => unreachable!(),
                 };
                 Ok(val)
@@ -210,7 +221,6 @@ impl Interpreter {
                 };
                 let val = match func {
                     Func::Abs => return Ok(val.abs()),
-                    Func::Pow(exp) => arg.powf(*exp),
                     Func::Sin => arg.sin(),
                     Func::Sinh => arg.sinh(),
                     Func::Asin => arg.asin(),

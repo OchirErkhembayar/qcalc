@@ -287,6 +287,10 @@ mod tests {
         input_and_evaluate(&mut app, "let foo = sqrt(144)");
         input_and_evaluate(&mut app, "foo");
         assert_output(&app, 12.0);
+
+        input_and_evaluate(&mut app, "let foo = -2 ** 3");
+        input_and_evaluate(&mut app, "foo");
+        assert_output(&app, -8 as f64);
     }
 
     #[test]

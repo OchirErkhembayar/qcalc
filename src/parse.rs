@@ -8,7 +8,6 @@ const COSH: &str = "cosh";
 const ACOS: &str = "acos";
 const ACOSH: &str = "acosh";
 const ABS: &str = "abs";
-const POW: &str = "pow";
 const SIN: &str = "sin";
 const SINH: &str = "sinh";
 const ASIN: &str = "asin";
@@ -49,7 +48,6 @@ pub struct ParseErr {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Func {
     Abs,
-    Pow(f64),
     Sin,
     Sinh,
     Asin,
@@ -283,11 +281,21 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.unary()?;
+        let mut expr = self.exponent()?;
         while *self.peek() == Token::Div
             || *self.peek() == Token::Mult
             || *self.peek() == Token::Mod
         {
+            let operator = self.advance();
+            let right = self.exponent()?;
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+        Ok(expr)
+    }
+
+    fn exponent(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.unary()?;
+        while *self.peek() == Token::Pow {
             let operator = self.advance();
             let right = self.unary()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -351,21 +359,6 @@ impl<'a> Parser<'a> {
                 self.advance();
                 let func = match func.as_str() {
                     ABS => Func::Abs,
-                    POW => {
-                        if matches!(self.peek(), Token::Float(_) | Token::Int(_)) {
-                            let base = match self.advance() {
-                                Token::Float(float) => float,
-                                Token::Int(int) => int as f64,
-                                _ => unreachable!(),
-                            };
-                            Func::Pow(base)
-                        } else {
-                            return Err(ParseErr::new(
-                                self.peek().clone(),
-                                "Missing exponent for pow function",
-                            ));
-                        }
-                    }
                     SIN => Func::Sin,
                     SINH => Func::Sinh,
                     ASIN => Func::Asin,
@@ -440,7 +433,6 @@ impl Display for Func {
             "{}",
             match self {
                 Func::Abs => ABS,
-                Func::Pow(exp) => return inner_write(format!("pow({})", exp), f),
                 Func::Sin => SIN,
                 Func::Sinh => SINH,
                 Func::Asin => ASIN,

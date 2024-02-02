@@ -23,6 +23,7 @@ pub enum Token {
     Mult,
     Plus,
     Minus,
+    Pow,
     Not,
     RParen,
     LParen,
@@ -48,6 +49,7 @@ impl std::fmt::Display for Token {
             Token::Div => inner_write('/', f),
             Token::Plus => inner_write('+', f),
             Token::Minus => inner_write('-', f),
+            Token::Pow => inner_write("**", f),
             Token::Not => inner_write('!', f),
             Token::BitOr => inner_write('|', f),
             Token::BitAnd => inner_write('&', f),
@@ -97,7 +99,14 @@ impl<'a> Iterator for Tokenizer<'a> {
             '+' => Token::Plus,
             '-' => Token::Minus,
             '%' => Token::Mod,
-            '*' => Token::Mult,
+            '*' => {
+                if self.input.peek().is_some_and(|c| *c == '*') {
+                    self.input.next().unwrap();
+                    Token::Pow
+                } else {
+                    Token::Mult
+                }
+            }
             '!' => Token::Not,
             '&' => Token::BitAnd,
             '^' => Token::BitXor,
