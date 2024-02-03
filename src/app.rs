@@ -11,8 +11,8 @@ use ratatui::{
 use tui_textarea::{Input, TextArea};
 
 use crate::{
-    interpreter::{Interpreter, Stmt},
-    parse::{Expr, Parser},
+    interpreter::{Interpreter, Stmt, Value},
+    parse::Parser,
     token::Tokenizer,
 };
 
@@ -23,10 +23,10 @@ pub enum Popup {
 
 pub struct App<'ta> {
     pub input: TextArea<'ta>,
-    pub output: Option<String>,
+    pub output: Option<Value>,
     pub err: Option<String>,
     pub interpreter: Interpreter,
-    pub expr_history: Vec<Expr>,
+    pub expr_history: Vec<Stmt>,
     pub expr_selector: usize,
     pub should_quit: bool,
     pub popup: Option<Popup>,
@@ -68,20 +68,9 @@ impl<'ta> App<'ta> {
                 let res = Parser::new(tokenizer, token)
                     .parse()
                     .expect("Invalid syntax in RC file");
-                match res {
-                    Stmt::Fn(name, params, body) => {
-                        self.interpreter.declare_function(name, params, body)
-                    }
-                    Stmt::Assign(name, expr) => {
-                        self.interpreter.define(
-                            name,
-                            self.interpreter.interpret_expr(&expr).unwrap_or_else(|_| {
-                                panic!("RC file: {} not found", &self.rc_file.display())
-                            }),
-                        );
-                    }
-                    _ => {}
-                }
+                self.interpreter
+                    .interpret(res)
+                    .expect("Runtime error in RC file. Either edit it or delete it and restart");
             }
         });
     }
@@ -109,7 +98,7 @@ impl<'ta> App<'ta> {
                     .write_all(commands.as_bytes())
                     .map_err(|e| format!("ERROR: Failed to write to rc file, {}", e))
                 {
-                    Ok(_) => self.set_output("Success".to_string()),
+                    Ok(_) => self.set_output(Value::String("Success".to_string())),
                     Err(err) => self.set_err(err.to_string()),
                 }
             }
@@ -138,19 +127,15 @@ impl<'ta> App<'ta> {
         let current = tokenizer.next().unwrap();
         match Parser::new(tokenizer, current).parse() {
             Ok(stmt) => {
-                if let Stmt::Expr(expr) = &stmt {
-                    if !self.expr_history.contains(expr) {
-                        self.expr_history.push(expr.clone());
-                    }
-                    if self.expr_selector == self.expr_history.len() {
-                        self.expr_selector += 1;
-                    }
+                if !self.expr_history.contains(&stmt) {
+                    self.expr_history.push(stmt.clone());
+                }
+                if self.expr_selector == self.expr_history.len() {
+                    self.expr_selector += 1;
                 }
                 match self.interpreter.interpret(stmt) {
                     Ok(res) => {
-                        if let Some(res) = res {
-                            self.set_output(res.to_string());
-                        }
+                        self.set_output(res);
                         self.input = textarea(None, None, None);
                     }
                     Err(err) => self.set_err(err.to_string()),
@@ -160,7 +145,7 @@ impl<'ta> App<'ta> {
         };
     }
 
-    fn set_output(&mut self, msg: String) {
+    fn set_output(&mut self, msg: Value) {
         self.output = Some(msg);
         self.err = None;
     }
@@ -243,10 +228,10 @@ mod tests {
         app.eval();
     }
 
-    fn assert_output(app: &App, expected: f64) {
+    fn assert_output(app: &App, expected: Value) {
         // Yuck.
         if let Some(output) = &app.output {
-            assert_eq!(output.parse::<f64>().unwrap(), expected);
+            assert_eq!(output, &expected);
         } else {
             panic!("Error: {:?}", app.err);
         }
@@ -255,9 +240,9 @@ mod tests {
     #[test]
     fn create_and_call_function() {
         let mut app = new_app();
-        input_and_evaluate(&mut app, "fn foo(x, y) x + y");
+        input_and_evaluate(&mut app, "let foo = |x, y| x + y");
         input_and_evaluate(&mut app, "foo (1, 2)");
-        assert!(app.output.is_some_and(|r| r == "3"));
+        assert!(app.output.is_some_and(|r| r == Value::Int(3)));
     }
 
     #[test]
@@ -274,9 +259,9 @@ mod tests {
             ("recip(2)", 0.5),
         ];
 
-        input_and_ans.iter().for_each(|(input, exp)| {
+        input_and_ans.into_iter().for_each(|(input, exp)| {
             input_and_evaluate(&mut app, input);
-            assert_output(&app, *exp);
+            assert_output(&app, Value::Float(exp));
         });
     }
 
@@ -286,25 +271,25 @@ mod tests {
 
         input_and_evaluate(&mut app, "let foo = sqrt(144)");
         input_and_evaluate(&mut app, "foo");
-        assert_output(&app, 12.0);
+        assert_output(&app, Value::Float(12.0));
 
         input_and_evaluate(&mut app, "let foo = -2 ** 3");
         input_and_evaluate(&mut app, "foo");
-        assert_output(&app, -8 as f64);
+        assert_output(&app, Value::Int(-8));
     }
 
     #[test]
     fn test_rc_file() {
         let mut app = new_app_empty_rc();
         input_and_evaluate(&mut app, "let x = 5");
-        input_and_evaluate(&mut app, "fn foo(a, b) a + b * 5");
+        input_and_evaluate(&mut app, "let foo = |a, b| a + b * 5");
         app.update_rc();
         drop(app);
         let mut app = new_app();
         input_and_evaluate(&mut app, "x");
-        assert_output(&app, 5.0);
+        assert_output(&app, Value::Int(5));
         input_and_evaluate(&mut app, "foo(2, 3)");
-        assert_output(&app, 17.0);
+        assert_output(&app, Value::Int(17));
     }
 
     #[test]
@@ -312,7 +297,7 @@ mod tests {
         let mut app = new_app();
 
         input_and_evaluate(&mut app, "0x1f + 0b110 / 2");
-        assert_output(&app, 34.0);
+        assert_output(&app, Value::Float(34.0));
     }
 
     #[test]
@@ -320,18 +305,27 @@ mod tests {
         let mut app = new_app();
 
         input_and_evaluate(&mut app, "0b1010 & 0b0111");
-        assert_output(&app, 0b0010 as f64);
+        assert_output(&app, Value::Int(0b0010));
 
         input_and_evaluate(&mut app, "0b1010 | 0b0111");
-        assert_output(&app, 0b1111 as f64);
+        assert_output(&app, Value::Int(0b1111));
 
         input_and_evaluate(&mut app, "0b1010 ^ 0b0111");
-        assert_output(&app, 0b1101 as f64);
+        assert_output(&app, Value::Int(0b1101));
 
         input_and_evaluate(&mut app, "!45");
-        assert_output(&app, -46 as f64);
+        assert_output(&app, Value::Int(-46));
 
         input_and_evaluate(&mut app, "0b11 | 0x1 << 2");
-        assert_output(&app, 7 as f64);
+        assert_output(&app, Value::Int(7));
+    }
+
+    #[test]
+    fn higher_order() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "let bar = |x| |y| x ** y");
+        input_and_evaluate(&mut app, "bar(3)(2)");
+        assert_output(&app, Value::Int(9));
     }
 }

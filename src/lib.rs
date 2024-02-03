@@ -48,12 +48,7 @@ pub fn eval(input: &str) -> Result<Value, Box<dyn Error>> {
     let mut tokenizer = Tokenizer::new(input.chars().peekable()).peekable();
     let current = tokenizer.next().ok_or("Expected expression")?;
     let stmt = Parser::new(tokenizer, current).parse()?;
-    let res = Interpreter::new().interpret(stmt)?;
-    if let Some(ans) = res {
-        Ok(ans)
-    } else {
-        Ok(Value::Float(1_f64))
-    }
+    Ok(Interpreter::new().interpret(stmt)?)
 }
 
 fn update(app: &mut App, key_event: KeyEvent) {
