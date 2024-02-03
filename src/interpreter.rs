@@ -169,7 +169,15 @@ impl Interpreter {
         match expr {
             Expr::Float(float) => Ok(Value::Float(*float)),
             Expr::Int(int) => Ok(Value::Int(*int)),
+            Expr::String(string) => Ok(Value::String(string.clone())),
             Expr::Bool(bool) => Ok(Value::Bool(*bool)),
+            Expr::If(cond, then, else_expr) => {
+                if self.interpret_expr(cond)?.truthy() {
+                    self.interpret_expr(then)
+                } else {
+                    self.interpret_expr(else_expr)
+                }
+            }
             Expr::Binary(left, operator, right) => {
                 let left = self.interpret_expr(left)?;
                 let right = self.interpret_expr(right)?;

@@ -7,6 +7,9 @@ const LET: &str = "let";
 const UNDEF: &str = "undef";
 const TRUE: &str = "true";
 const FALSE: &str = "false";
+const IF: &str = "if";
+const THEN: &str = "then";
+const ELSE: &str = "else";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
@@ -41,6 +44,10 @@ pub enum Token {
     Lte,
     Or,
     And,
+    If,
+    Then,
+    Else,
+    String(String),
 }
 
 impl std::fmt::Display for Token {
@@ -48,6 +55,7 @@ impl std::fmt::Display for Token {
         match self {
             Token::Float(float) => inner_write(float, f),
             Token::Int(int) => inner_write(int, f),
+            Token::String(string) => inner_write(format!("\"{}\"", string), f),
             Token::Undef => inner_write(UNDEF, f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
@@ -67,8 +75,8 @@ impl std::fmt::Display for Token {
             Token::RParen => inner_write(')', f),
             Token::Shr => inner_write(">>", f),
             Token::Shl => inner_write("<<", f),
-            Token::True => inner_write("true", f),
-            Token::False => inner_write("false", f),
+            Token::True => inner_write(TRUE, f),
+            Token::False => inner_write(FALSE, f),
             Token::Eq => inner_write("==", f),
             Token::Ne => inner_write("!=", f),
             Token::Gt => inner_write(">", f),
@@ -77,6 +85,9 @@ impl std::fmt::Display for Token {
             Token::Lte => inner_write("<=", f),
             Token::Or => inner_write("||", f),
             Token::And => inner_write("&&", f),
+            Token::If => inner_write(IF, f),
+            Token::Then => inner_write(THEN, f),
+            Token::Else => inner_write(ELSE, f),
         }
     }
 }
@@ -217,21 +228,45 @@ impl<'a> Iterator for Tokenizer<'a> {
                     }
                 }
             }
+            '"' => {
+                let mut string = String::new();
+                while self.input.peek().is_some_and(|c| *c != '"') {
+                    let next = self.input.next().unwrap();
+                    if next == '\\' {
+                        if let Some(char) = self.input.next() {
+                            string.push('\\');
+                            string.push(char);
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        string.push(next);
+                    }
+                }
+                if let Some('"') = self.input.next() {
+                    Token::String(string)
+                } else {
+                    return None;
+                }
+            }
             'A'..='Z' | 'a'..='z' => {
-                let mut func = next.to_string();
+                let mut ident = next.to_string();
                 while self
                     .input
                     .peek()
                     .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_')
                 {
-                    func.push(self.input.next().unwrap());
+                    ident.push(self.input.next().unwrap());
                 }
-                match func.as_str() {
+                match ident.as_str() {
                     LET => Token::Let,
                     UNDEF => Token::Undef,
                     TRUE => Token::True,
                     FALSE => Token::False,
-                    _ => Token::Ident(func),
+                    IF => Token::If,
+                    THEN => Token::Then,
+                    ELSE => Token::Else,
+                    _ => Token::Ident(ident),
                 }
             }
             _ => return None, // Unknown chars just end the parsing. Not sure if good or
@@ -318,6 +353,28 @@ mod tests {
         assert_eq!(
             tokenizer.next(),
             Some(Token::Ident("foo_bar1337".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_if_else() {
+        let str = "if 1 == 3 then 3 % 3 else \"lol\"".chars().peekable();
+        println!("str: {:?}", str);
+        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::If,
+                Token::Int(1),
+                Token::Eq,
+                Token::Int(3),
+                Token::Then,
+                Token::Int(3),
+                Token::Mod,
+                Token::Int(3),
+                Token::Else,
+                Token::String("lol".to_string()),
+            ]
         );
     }
 }
