@@ -336,4 +336,53 @@ mod tests {
         input_and_evaluate(&mut app, "if 0 then 3 % 5 else \"this is the answer\"");
         assert_output(&app, Value::String("this is the answer".to_string()));
     }
+
+    #[test]
+    fn test_list() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "[1, \"foo\", 1 == 1, []]");
+        assert_output(
+            &app,
+            Value::List(vec![
+                Value::Int(1),
+                Value::String("foo".to_string()),
+                Value::Bool(true),
+                Value::List(vec![]),
+            ]),
+        )
+    }
+
+    #[test]
+    fn test_iterator() {
+        let mut app = new_app();
+
+        input_and_evaluate(
+            &mut app,
+            "fold([0, 1, 2, 3], |acc, x| if x > 1 then acc + x else acc, 10)",
+        );
+        assert_output(&app, Value::Int(15));
+
+        input_and_evaluate(&mut app, "map([1, 2, 3], |x| even(x))");
+        assert_output(
+            &app,
+            Value::List(vec![
+                Value::Bool(false),
+                Value::Bool(true),
+                Value::Bool(false),
+            ]),
+        );
+
+        input_and_evaluate(
+            &mut app,
+            "filter([[1, 2], [2, 3], [3, 4]], |arr| sum(arr) > 3)",
+        );
+        assert_output(
+            &app,
+            Value::List(vec![
+                Value::List(vec![Value::Int(2), Value::Int(3)]),
+                Value::List(vec![Value::Int(3), Value::Int(4)]),
+            ]),
+        );
+    }
 }
