@@ -30,6 +30,8 @@ pub enum Token {
     Not,
     RParen,
     LParen,
+    LBracket,
+    RBracket,
     BitAnd,
     BitXor,
     Shr,
@@ -73,6 +75,8 @@ impl std::fmt::Display for Token {
             Token::BitXor => inner_write('^', f),
             Token::LParen => inner_write('(', f),
             Token::RParen => inner_write(')', f),
+            Token::LBracket => inner_write('[', f),
+            Token::RBracket => inner_write(']', f),
             Token::Shr => inner_write(">>", f),
             Token::Shl => inner_write("<<", f),
             Token::True => inner_write(TRUE, f),
@@ -181,6 +185,8 @@ impl<'a> Iterator for Tokenizer<'a> {
             }
             '(' => Token::LParen,
             ')' => Token::RParen,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
             '0'..='9' => {
                 // Check if it's hex
                 if next == '0'

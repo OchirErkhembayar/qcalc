@@ -31,6 +31,12 @@ const EXP: &str = "exp";
 const EXP2: &str = "exp2";
 const FRACT: &str = "fract";
 const RECIP: &str = "recip";
+const MAP: &str = "map";
+const SUM: &str = "sum";
+const FOLD: &str = "fold";
+const FILTER: &str = "filter";
+const ODD: &str = "odd";
+const EVEN: &str = "even";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -75,6 +81,12 @@ pub enum Func {
     Exp2,
     Fract,
     Recip,
+    Map,
+    Sum,
+    Fold,
+    Filter,
+    Odd,
+    Even,
 }
 
 impl Func {
@@ -108,6 +120,12 @@ impl Func {
             Func::Exp2 => 1,
             Func::Fract => 1,
             Func::Recip => 1,
+            Func::Map => 2,
+            Func::Sum => 1,
+            Func::Fold => 3,
+            Func::Filter => 2,
+            Func::Odd => 1,
+            Func::Even => 1,
         }
     }
 }
@@ -126,6 +144,7 @@ pub enum Expr {
     Bool(bool),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     String(String),
+    List(Vec<Expr>),
 }
 
 impl Expr {
@@ -163,6 +182,14 @@ impl Expr {
                 arguments
                     .iter()
                     .map(|a| a.format())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::List(elems) => format!(
+                "[{}]",
+                elems
+                    .iter()
+                    .map(|e| e.format())
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -475,6 +502,21 @@ impl<'a> Parser<'a> {
                 self.consume(Token::RParen, "Missing closing parentheses")?;
                 Ok(Expr::Grouping(expr))
             }
+            Token::LBracket => {
+                self.advance();
+                let mut elems = vec![];
+                if !self.check(&Token::RBracket) {
+                    loop {
+                        elems.push(self.expression()?);
+                        if !self.check(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
+                self.consume(Token::RBracket, "Missing closing bracket")?;
+                Ok(Expr::List(elems))
+            }
             Token::Ident(func) => {
                 let func = func.to_owned();
                 self.advance();
@@ -507,6 +549,12 @@ impl<'a> Parser<'a> {
                     EXP2 => Func::Exp2,
                     FRACT => Func::Fract,
                     RECIP => Func::Recip,
+                    MAP => Func::Map,
+                    SUM => Func::Sum,
+                    FOLD => Func::Fold,
+                    FILTER => Func::Filter,
+                    EVEN => Func::Even,
+                    ODD => Func::Odd,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -576,6 +624,12 @@ impl Display for Func {
                 Func::Exp2 => EXP2,
                 Func::Fract => FRACT,
                 Func::Recip => RECIP,
+                Func::Map => MAP,
+                Func::Sum => SUM,
+                Func::Fold => FOLD,
+                Func::Filter => FILTER,
+                Func::Odd => ODD,
+                Func::Even => EVEN,
             }
         )
     }

@@ -40,6 +40,7 @@ pub enum Value {
     Int(i64),
     String(String),
     Bool(bool),
+    List(Vec<Value>),
     Unit,
 }
 
@@ -56,6 +57,14 @@ impl Value {
                 name,
                 func.parameters.join(", "),
                 func.body.format()
+            ),
+            Self::List(elems) => format!(
+                "[{}]",
+                elems
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         }
     }
@@ -86,6 +95,53 @@ impl Value {
             Self::String(string) => !string.is_empty(),
             Self::Unit => false,
             Self::Fn(_) => true,
+            Self::List(elems) => !elems.is_empty(),
+        }
+    }
+
+    fn to_float(&self) -> Result<f64, InterpretError> {
+        if let Value::Float(float) = self.clone() {
+            Ok(float)
+        } else if let Value::Int(int) = self {
+            Ok(*int as f64)
+        } else {
+            Err(InterpretError::InvalidArgument(format!(
+                "Expected float, got: {}",
+                self
+            )))
+        }
+    }
+
+    fn to_list(&self) -> Result<Vec<Self>, InterpretError> {
+        if let Value::List(list) = self.clone() {
+            Ok(list)
+        } else {
+            Err(InterpretError::InvalidArgument(format!(
+                "Expected list, got: {}",
+                self
+            )))
+        }
+    }
+
+    fn to_callable(&self) -> Result<Function, InterpretError> {
+        if let Value::Fn(function) = self.clone() {
+            Ok(function)
+        } else {
+            Err(InterpretError::InvalidArgument(format!(
+                "Expected function, got: {}",
+                self
+            )))
+        }
+    }
+
+    fn to_int(&self) -> Result<i64, InterpretError> {
+        if let Value::Int(int) = self.clone() {
+            Ok(int)
+        } else {
+            Err(InterpretError::InvalidArgument(format!(
+                "Expected int, got: {}",
+                self
+            )))
         }
     }
 }
@@ -168,6 +224,13 @@ impl Interpreter {
     pub fn interpret_expr(&self, expr: &Expr) -> Result<Value, InterpretError> {
         match expr {
             Expr::Float(float) => Ok(Value::Float(*float)),
+            Expr::List(elems) => {
+                let mut elements = vec![];
+                for elem in elems.iter() {
+                    elements.push(self.interpret_expr(elem)?);
+                }
+                Ok(Value::List(elements))
+            }
             Expr::Int(int) => Ok(Value::Int(*int)),
             Expr::String(string) => Ok(Value::String(string.clone())),
             Expr::Bool(bool) => Ok(Value::Bool(*bool)),
@@ -182,11 +245,11 @@ impl Interpreter {
                 let left = self.interpret_expr(left)?;
                 let right = self.interpret_expr(right)?;
                 let val = match operator {
-                    Token::Plus => left + right,
-                    Token::Minus => left - right,
-                    Token::Mult => left * right,
-                    Token::Div => left / right,
-                    Token::Mod => left % right,
+                    Token::Plus => (left + right)?,
+                    Token::Minus => (left - right)?,
+                    Token::Mult => (left * right)?,
+                    Token::Div => (left / right)?,
+                    Token::Mod => (left % right)?,
                     Token::BitAnd => (left & right)?,
                     Token::Pipe => (left | right)?,
                     Token::BitXor => (left ^ right)?,
@@ -247,12 +310,7 @@ impl Interpreter {
             Expr::Func(func, args) => {
                 let mut arguments = vec![];
                 for arg in args.iter() {
-                    let arg = match self.interpret_expr(arg)? {
-                        Value::Float(float) => float,
-                        Value::Int(int) => int as f64,
-                        _ => unreachable!(),
-                    };
-                    arguments.push(arg);
+                    arguments.push(self.interpret_expr(arg)?);
                 }
                 let arity = func.arity();
                 if arguments.len() != arity {
@@ -264,33 +322,76 @@ impl Interpreter {
                 }
                 let val = match func {
                     Func::Abs => return Ok(self.interpret_expr(&args[0])?.abs()),
-                    Func::Sin => arguments[0].sin(),
-                    Func::Sinh => arguments[0].sinh(),
-                    Func::Asin => arguments[0].asin(),
-                    Func::Asinh => arguments[0].asinh(),
-                    Func::Cos => arguments[0].cos(),
-                    Func::Cosh => arguments[0].cosh(),
-                    Func::Acos => arguments[0].acos(),
-                    Func::Acosh => arguments[0].acosh(),
-                    Func::Tan => arguments[0].tan(),
-                    Func::Tanh => arguments[0].tanh(),
-                    Func::Atan => arguments[0].atan(),
-                    Func::Atanh => arguments[0].tanh(),
-                    Func::Ln => arguments[0].ln(),
-                    Func::Log => arguments[1].log(arguments[0]),
-                    Func::Degs => arguments[0].to_degrees(),
-                    Func::Rads => arguments[0].to_radians(),
-                    Func::Sq => arguments[0].powi(2),
-                    Func::Sqrt => arguments[0].sqrt(),
-                    Func::Cube => arguments[0].powi(3),
-                    Func::Cbrt => arguments[0].cbrt(),
-                    Func::Round => arguments[0].round(),
-                    Func::Ceil => arguments[0].ceil(),
-                    Func::Floor => arguments[0].floor(),
-                    Func::Exp => arguments[0].exp(),
-                    Func::Exp2 => arguments[0].exp2(),
-                    Func::Fract => arguments[0].fract(),
-                    Func::Recip => arguments[0].recip(),
+                    Func::Sin => arguments[0].to_float()?.sin(),
+                    Func::Sinh => arguments[0].to_float()?.sinh(),
+                    Func::Asin => arguments[0].to_float()?.asin(),
+                    Func::Asinh => arguments[0].to_float()?.asinh(),
+                    Func::Cos => arguments[0].to_float()?.cos(),
+                    Func::Cosh => arguments[0].to_float()?.cosh(),
+                    Func::Acos => arguments[0].to_float()?.acos(),
+                    Func::Acosh => arguments[0].to_float()?.acosh(),
+                    Func::Tan => arguments[0].to_float()?.tan(),
+                    Func::Tanh => arguments[0].to_float()?.tanh(),
+                    Func::Atan => arguments[0].to_float()?.atan(),
+                    Func::Atanh => arguments[0].to_float()?.tanh(),
+                    Func::Ln => arguments[0].to_float()?.ln(),
+                    Func::Log => arguments[1].to_float()?.log(arguments[0].to_float()?),
+                    Func::Degs => arguments[0].to_float()?.to_degrees(),
+                    Func::Rads => arguments[0].to_float()?.to_radians(),
+                    Func::Sq => arguments[0].to_float()?.powi(2),
+                    Func::Sqrt => arguments[0].to_float()?.sqrt(),
+                    Func::Cube => arguments[0].to_float()?.powi(3),
+                    Func::Cbrt => arguments[0].to_float()?.cbrt(),
+                    Func::Round => arguments[0].to_float()?.round(),
+                    Func::Ceil => arguments[0].to_float()?.ceil(),
+                    Func::Floor => arguments[0].to_float()?.floor(),
+                    Func::Exp => arguments[0].to_float()?.exp(),
+                    Func::Exp2 => arguments[0].to_float()?.exp2(),
+                    Func::Fract => arguments[0].to_float()?.fract(),
+                    Func::Recip => arguments[0].to_float()?.recip(),
+                    Func::Map => {
+                        let list = arguments[0].to_list()?;
+                        let callable = arguments[1].to_callable()?;
+                        let mut result = vec![];
+                        for elem in list.into_iter() {
+                            result.push(callable.call(vec![elem])?);
+                        }
+                        return Ok(Value::List(result));
+                    }
+                    Func::Sum => {
+                        let list = arguments[0].to_list()?;
+                        let mut result = 0_f64;
+                        for elem in list.into_iter() {
+                            result += elem.to_float()?;
+                        }
+                        result
+                    }
+                    Func::Fold => {
+                        let list = arguments[0].to_list()?;
+                        let callable = arguments[1].to_callable()?;
+                        let mut acc = arguments[2].clone();
+                        for elem in list.into_iter() {
+                            acc = callable.call(vec![acc, elem])?;
+                        }
+                        return Ok(acc);
+                    }
+                    Func::Filter => {
+                        let list = arguments[0].to_list()?;
+                        let callable = arguments[1].to_callable()?;
+                        let mut result = vec![];
+                        for elem in list.into_iter() {
+                            if callable.call(vec![elem.clone()])?.truthy() {
+                                result.push(elem);
+                            }
+                        }
+                        return Ok(Value::List(result));
+                    }
+                    Func::Even => {
+                        return Ok(Value::Bool(arguments[0].to_int()? % 2 == 0));
+                    }
+                    Func::Odd => {
+                        return Ok(Value::Bool(arguments[0].to_int()? % 2 != 0));
+                    }
                 };
                 Ok(Value::Float(val))
             }
@@ -351,63 +452,110 @@ impl Display for Value {
             Self::String(string) => inner_write(string, f),
             Self::Unit => inner_write("()", f),
             Self::Bool(bool) => inner_write(bool, f),
+            Self::List(elems) => inner_write(
+                format!(
+                    "[{}]",
+                    elems
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                f,
+            ),
         }
     }
 }
 
 impl Add for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn add(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs + rhs),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + rhs as f64),
-            _ => panic!("Cannot add non numeric types"),
-        }
+            (Value::List(mut lhs), Value::List(mut rhs)) => {
+                lhs.append(&mut rhs);
+                Value::List(lhs)
+            }
+            (Value::List(mut lhs), other) => {
+                lhs.push(other);
+                Value::List(lhs)
+            }
+            (Value::String(mut lhs), Value::String(rhs)) => {
+                lhs.push_str(&rhs);
+                Value::String(lhs)
+            }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "Cannot add these types together".to_string(),
+                ))
+            }
+        };
+
+        Ok(res)
     }
 }
 
 impl Sub for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs - rhs),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs - rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 - rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs - rhs as f64),
-            _ => panic!("Cannot sub non numeric types"),
-        }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "Cannot sub non numeric types".to_string(),
+                ))
+            }
+        };
+
+        Ok(res)
     }
 }
 
 impl Mul for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs * rhs),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs * rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 * rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs * rhs as f64),
-            _ => panic!("Cannot mul non numeric types"),
-        }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "Cannot mul non numeric types".to_string(),
+                ))
+            }
+        };
+
+        Ok(res)
     }
 }
 
 impl Div for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn div(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Float(lhs as f64 / rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs / rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 / rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs / rhs as f64),
-            _ => panic!("Cannot divide non numeric types"),
-        }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "Cannot divide non numeric types".to_string(),
+                ))
+            }
+        };
+
+        Ok(res)
     }
 }
 
@@ -424,16 +572,22 @@ impl Neg for Value {
 }
 
 impl Rem for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn rem(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Float(lhs as f64 % rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs % rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 % rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs % rhs as f64),
-            _ => panic!("Cannot calculate rem of non numeric types"),
-        }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "Cannot calculate rem of non numeric types".to_string(),
+                ))
+            }
+        };
+
+        Ok(res)
     }
 }
 
@@ -508,6 +662,7 @@ impl Not for Value {
     fn not(self) -> Self::Output {
         match self {
             Value::Int(int) => Ok(Value::Int(!int)),
+            Value::Bool(bool) => Ok(Value::Bool(!bool)),
             _ => Err(InterpretError::InvalidArgument(
                 "! cannot be applied to this data type".to_string(),
             )),
