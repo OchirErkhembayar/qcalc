@@ -3,20 +3,20 @@ use std::str::Chars;
 
 use crate::inner_write;
 
-const FN: &str = "fn";
 const LET: &str = "let";
 const UNDEF: &str = "undef";
+const TRUE: &str = "true";
+const FALSE: &str = "false";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Float(f64),
     Int(i64),
-    Fn,
     Comma,
     Ident(String),
     Let,
     Undef,
-    Eq,
+    Assign,
     Pipe,
     Mod,
     Div,
@@ -31,6 +31,16 @@ pub enum Token {
     BitXor,
     Shr,
     Shl,
+    True,
+    False,
+    Eq,
+    Ne,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+    Or,
+    And,
 }
 
 impl std::fmt::Display for Token {
@@ -38,12 +48,11 @@ impl std::fmt::Display for Token {
         match self {
             Token::Float(float) => inner_write(float, f),
             Token::Int(int) => inner_write(int, f),
-            Token::Fn => inner_write(FN, f),
             Token::Undef => inner_write(UNDEF, f),
             Token::Comma => inner_write(',', f),
             Token::Ident(ident) => inner_write(ident, f),
             Token::Let => inner_write(LET, f),
-            Token::Eq => inner_write('=', f),
+            Token::Assign => inner_write('=', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
             Token::Div => inner_write('/', f),
@@ -58,6 +67,16 @@ impl std::fmt::Display for Token {
             Token::RParen => inner_write(')', f),
             Token::Shr => inner_write(">>", f),
             Token::Shl => inner_write("<<", f),
+            Token::True => inner_write("true", f),
+            Token::False => inner_write("false", f),
+            Token::Eq => inner_write("==", f),
+            Token::Ne => inner_write("!=", f),
+            Token::Gt => inner_write(">", f),
+            Token::Gte => inner_write(">=", f),
+            Token::Lt => inner_write("<", f),
+            Token::Lte => inner_write("<=", f),
+            Token::Or => inner_write("||", f),
+            Token::And => inner_write("&&", f),
         }
     }
 }
@@ -85,16 +104,58 @@ impl<'a> Iterator for Tokenizer<'a> {
                 }
                 return self.next();
             }
-            '>' => match self.input.next() {
-                Some('>') => Token::Shr,
-                _ => Token::Ident("<".to_string()),
+            '>' => match self.input.peek() {
+                Some('>') => {
+                    self.input.next();
+                    Token::Shr
+                }
+                Some('=') => {
+                    self.input.next();
+                    Token::Gte
+                }
+                _ => Token::Gt,
             },
-            '<' => match self.input.next() {
-                Some('<') => Token::Shl,
-                _ => Token::Ident("<".to_string()),
+            '<' => match self.input.peek() {
+                Some('<') => {
+                    self.input.next();
+                    Token::Shl
+                }
+                Some('=') => {
+                    self.input.next();
+                    Token::Lte
+                }
+                _ => Token::Lt,
+            },
+            '=' => match self.input.peek() {
+                Some('=') => {
+                    self.input.next();
+                    Token::Eq
+                }
+                _ => Token::Assign,
+            },
+            '!' => match self.input.peek() {
+                Some('=') => {
+                    self.input.next();
+                    Token::Ne
+                }
+                _ => Token::Not,
+            },
+            '&' => match self.input.peek() {
+                Some('&') => {
+                    self.input.next();
+                    Token::And
+                }
+                _ => Token::BitAnd,
+            },
+            '^' => Token::BitXor,
+            '|' => match self.input.peek() {
+                Some('|') => {
+                    self.input.next();
+                    Token::Or
+                }
+                _ => Token::Pipe,
             },
             ',' => Token::Comma,
-            '=' => Token::Eq,
             '/' => Token::Div,
             '+' => Token::Plus,
             '-' => Token::Minus,
@@ -107,10 +168,6 @@ impl<'a> Iterator for Tokenizer<'a> {
                     Token::Mult
                 }
             }
-            '!' => Token::Not,
-            '&' => Token::BitAnd,
-            '^' => Token::BitXor,
-            '|' => Token::Pipe,
             '(' => Token::LParen,
             ')' => Token::RParen,
             '0'..='9' => {
@@ -162,13 +219,18 @@ impl<'a> Iterator for Tokenizer<'a> {
             }
             'A'..='Z' | 'a'..='z' => {
                 let mut func = next.to_string();
-                while self.input.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
+                while self
+                    .input
+                    .peek()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_')
+                {
                     func.push(self.input.next().unwrap());
                 }
                 match func.as_str() {
-                    FN => Token::Fn,
                     LET => Token::Let,
                     UNDEF => Token::Undef,
+                    TRUE => Token::True,
+                    FALSE => Token::False,
                     _ => Token::Ident(func),
                 }
             }
@@ -246,5 +308,16 @@ mod tests {
 
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
         assert_eq!(tokenizer.next(), Some(Token::Int(12)));
+    }
+
+    #[test]
+    fn alpha_undscore_idents() {
+        let str = "foo_bar1337";
+
+        let mut tokenizer = Tokenizer::new(str.chars().peekable());
+        assert_eq!(
+            tokenizer.next(),
+            Some(Token::Ident("foo_bar1337".to_string()))
+        );
     }
 }

@@ -2,7 +2,7 @@ use crate::Tokenizer;
 use core::iter::Peekable;
 use std::{error::Error, fmt::Display};
 
-use crate::{inner_write, interpreter::Stmt, token::Token};
+use crate::{interpreter::Stmt, token::Token};
 const COS: &str = "cos";
 const COSH: &str = "cosh";
 const ACOS: &str = "acos";
@@ -61,7 +61,7 @@ pub enum Func {
     Atan,
     Atanh,
     Ln,
-    Log(f64),
+    Log,
     Degs,
     Rads,
     Sq,
@@ -77,6 +77,41 @@ pub enum Func {
     Recip,
 }
 
+impl Func {
+    pub fn arity(&self) -> usize {
+        match self {
+            Func::Abs => 1,
+            Func::Sin => 1,
+            Func::Sinh => 1,
+            Func::Asin => 1,
+            Func::Asinh => 1,
+            Func::Cos => 1,
+            Func::Cosh => 1,
+            Func::Acos => 1,
+            Func::Acosh => 1,
+            Func::Tan => 1,
+            Func::Tanh => 1,
+            Func::Atan => 1,
+            Func::Atanh => 1,
+            Func::Ln => 1,
+            Func::Log => 2,
+            Func::Degs => 1,
+            Func::Rads => 1,
+            Func::Sq => 1,
+            Func::Sqrt => 1,
+            Func::Cube => 1,
+            Func::Cbrt => 1,
+            Func::Round => 1,
+            Func::Ceil => 1,
+            Func::Floor => 1,
+            Func::Exp => 1,
+            Func::Exp2 => 1,
+            Func::Fract => 1,
+            Func::Recip => 1,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
@@ -85,9 +120,10 @@ pub enum Expr {
     Int(i64),
     Unary(Box<Expr>, Token),
     Call(Box<Expr>, Vec<Expr>),
-    Func(Func, Box<Expr>),
+    Func(Func, Vec<Expr>),
     Fun(Vec<String>, Box<Expr>),
     Var(String),
+    Bool(bool),
 }
 
 impl Expr {
@@ -101,6 +137,7 @@ impl Expr {
             Self::Binary(left, operator, right) => {
                 format!("{}{}{}", left.format(), operator, right.format())
             }
+            Self::Bool(bool) => bool.to_string(),
             Self::Fun(params, body) => {
                 format!("|{}| {}", params.join(", "), body,)
             }
@@ -114,7 +151,15 @@ impl Expr {
                         .join(", ")
                 )
             }
-            Self::Func(func, argument) => format!("{}({})", func, argument.format()),
+            Self::Func(func, arguments) => format!(
+                "{}({})",
+                func,
+                arguments
+                    .iter()
+                    .map(|a| a.format())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -211,7 +256,7 @@ impl<'a> Parser<'a> {
             Token::Ident(name) => name,
             token => return Err(ParseErr::new(token, "Missing function name")),
         };
-        self.consume(Token::Eq, "Expected =")?;
+        self.consume(Token::Assign, "Expected =")?;
         let expr = self.expression()?;
         Ok(Stmt::Assign(name, expr))
     }
@@ -219,7 +264,7 @@ impl<'a> Parser<'a> {
     fn expression(&mut self) -> Result<Expr, ParseErr> {
         match self.peek() {
             Token::Pipe => self.callable(),
-            _ => self.bit_binary(),
+            _ => self.or(),
         }
     }
 
@@ -251,12 +296,55 @@ impl<'a> Parser<'a> {
         Ok(Expr::Fun(parameters, expr))
     }
 
+    fn or(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.and()?;
+        while *self.peek() == Token::Or {
+            self.advance();
+            let rhs = Box::new(self.and()?);
+            expr = Expr::Binary(Box::new(expr), Token::Or, rhs);
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.bit_binary()?;
+        while *self.peek() == Token::And {
+            self.advance();
+            let rhs = Box::new(self.bit_binary()?);
+            expr = Expr::Binary(Box::new(expr), Token::And, rhs);
+        }
+        Ok(expr)
+    }
+
     fn bit_binary(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.bit_shift()?;
+        let mut expr = self.equality()?;
         while matches!(*self.peek(), Token::Pipe | Token::BitXor | Token::BitAnd) {
             let operator = self.advance();
-            let right = self.bit_shift()?;
+            let right = self.equality()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right))
+        }
+        Ok(expr)
+    }
+
+    fn equality(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.comparison()?;
+        while matches!(*self.peek(), Token::Eq | Token::Ne) {
+            let operator = self.advance();
+            let right = Box::new(self.comparison()?);
+            expr = Expr::Binary(Box::new(expr), operator, right);
+        }
+        Ok(expr)
+    }
+
+    fn comparison(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.bit_shift()?;
+        while matches!(
+            *self.peek(),
+            Token::Gte | Token::Gt | Token::Lte | Token::Lt
+        ) {
+            let operator = self.advance();
+            let right = Box::new(self.bit_shift()?);
+            expr = Expr::Binary(Box::new(expr), operator, right);
         }
         Ok(expr)
     }
@@ -348,6 +436,14 @@ impl<'a> Parser<'a> {
                 self.advance();
                 res
             }
+            Token::True => {
+                self.advance();
+                Ok(Expr::Bool(true))
+            }
+            Token::False => {
+                self.advance();
+                Ok(Expr::Bool(false))
+            }
             Token::LParen => {
                 self.advance();
                 let expr = Box::new(self.expression()?);
@@ -372,21 +468,7 @@ impl<'a> Parser<'a> {
                     ATAN => Func::Atan,
                     ATANH => Func::Atanh,
                     LN => Func::Ln,
-                    LOG => {
-                        if matches!(self.peek(), Token::Float(_) | Token::Int(_)) {
-                            let base = match self.advance() {
-                                Token::Float(float) => float,
-                                Token::Int(int) => int as f64,
-                                _ => unreachable!(),
-                            };
-                            Func::Log(base)
-                        } else {
-                            return Err(ParseErr::new(
-                                self.peek().clone(),
-                                "Missing base for log function",
-                            ));
-                        }
-                    }
+                    LOG => Func::Log,
                     DEGS => Func::Degs,
                     RADS => Func::Rads,
                     SQ => Func::Sq,
@@ -403,9 +485,18 @@ impl<'a> Parser<'a> {
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
-                let arg = Box::new(self.expression()?);
+                let mut args = vec![];
+                if !self.check(&Token::RParen) {
+                    loop {
+                        args.push(self.expression()?);
+                        if !self.check(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
                 self.consume(Token::RParen, "Missing closing parentheses")?;
-                Ok(Expr::Func(func, arg))
+                Ok(Expr::Func(func, args))
             }
             _ => Err(ParseErr::new(self.peek().clone(), "Expected expression")),
         }
@@ -446,7 +537,7 @@ impl Display for Func {
                 Func::Atan => ATAN,
                 Func::Atanh => ATANH,
                 Func::Ln => LN,
-                Func::Log(base) => return inner_write(format!("log{}", base), f),
+                Func::Log => LOG,
                 Func::Degs => DEGS,
                 Func::Rads => RADS,
                 Func::Sq => SQ,
@@ -595,7 +686,7 @@ mod tests {
     fn test_assignment() {
         let expected = Stmt::Assign(
             "foo".to_string(),
-            Expr::Func(Func::Sq, Box::new(Expr::Float(2.0))),
+            Expr::Func(Func::Sq, vec![Expr::Float(2.0)]),
         );
 
         let mut tokenizer = Tokenizer::new("let foo = sq(2.0)".chars().peekable()).peekable();
@@ -605,9 +696,22 @@ mod tests {
 
     #[test]
     fn integer_base_log() {
-        let expected = Stmt::Expr(Expr::Func(Func::Log(10.0), Box::new(Expr::Int(1000))));
+        let expected = Stmt::Expr(Expr::Func(Func::Log, vec![Expr::Int(10), Expr::Int(1000)]));
 
-        let mut tokenizer = Tokenizer::new("log10(1000)".chars().peekable()).peekable();
+        let mut tokenizer = Tokenizer::new("log(10, 1000)".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_bools() {
+        let expected = Stmt::Expr(Expr::Binary(
+            Box::new(Expr::Bool(true)),
+            Token::Or,
+            Box::new(Expr::Bool(false)),
+        ));
+
+        let mut tokenizer = Tokenizer::new("true || false".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }

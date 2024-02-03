@@ -39,6 +39,7 @@ pub enum Value {
     Float(f64),
     Int(i64),
     String(String),
+    Bool(bool),
     Unit,
 }
 
@@ -49,6 +50,7 @@ impl Value {
             Self::Int(int) => format!("let {} = {}", name, int),
             Self::String(string) => string.to_owned(),
             Self::Unit => "()".to_string(),
+            Self::Bool(bool) => if *bool { "true" } else { "false" }.to_string(),
             Self::Fn(func) => format!(
                 "let {} = |{}| {}",
                 name,
@@ -73,6 +75,17 @@ impl Value {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float((*lhs as f64).powf(rhs)),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs.powi(rhs as i32)),
             _ => panic!("Cannot add non numeric types"),
+        }
+    }
+
+    fn truthy(&self) -> bool {
+        match self {
+            Self::Int(int) => *int > 0,
+            Self::Float(float) => *float > 0.0,
+            Self::Bool(bool) => *bool,
+            Self::String(string) => !string.is_empty(),
+            Self::Unit => false,
+            Self::Fn(_) => true,
         }
     }
 }
@@ -156,6 +169,7 @@ impl Interpreter {
         match expr {
             Expr::Float(float) => Ok(Value::Float(*float)),
             Expr::Int(int) => Ok(Value::Int(*int)),
+            Expr::Bool(bool) => Ok(Value::Bool(*bool)),
             Expr::Binary(left, operator, right) => {
                 let left = self.interpret_expr(left)?;
                 let right = self.interpret_expr(right)?;
@@ -171,6 +185,14 @@ impl Interpreter {
                     Token::Shl => (left << right)?,
                     Token::Shr => (left >> right)?,
                     Token::Pow => left.pow(right),
+                    Token::And => Value::Bool(left.truthy() && right.truthy()),
+                    Token::Or => Value::Bool(left.truthy() || right.truthy()),
+                    Token::Eq => Value::Bool(left == right),
+                    Token::Ne => Value::Bool(left != right),
+                    Token::Gte => Value::Bool(left >= right),
+                    Token::Gt => Value::Bool(left > right),
+                    Token::Lte => Value::Bool(left <= right),
+                    Token::Lt => Value::Bool(left < right),
                     _ => unreachable!(),
                 };
                 Ok(val)
@@ -214,42 +236,53 @@ impl Interpreter {
                     Err(InterpretError::UnknownVariable(var.clone()))
                 }
             }
-            Expr::Func(func, arg) => {
-                let val = self.interpret_expr(arg)?;
-                let arg = match val {
-                    Value::Float(float) => float,
-                    Value::Int(int) => int as f64,
-                    _ => unreachable!(),
-                };
+            Expr::Func(func, args) => {
+                let mut arguments = vec![];
+                for arg in args.iter() {
+                    let arg = match self.interpret_expr(arg)? {
+                        Value::Float(float) => float,
+                        Value::Int(int) => int as f64,
+                        _ => unreachable!(),
+                    };
+                    arguments.push(arg);
+                }
+                let arity = func.arity();
+                if arguments.len() != arity {
+                    return Err(InterpretError::WrongArity(
+                        Value::String(func.to_string()),
+                        arguments.len(),
+                        arity,
+                    ));
+                }
                 let val = match func {
-                    Func::Abs => return Ok(val.abs()),
-                    Func::Sin => arg.sin(),
-                    Func::Sinh => arg.sinh(),
-                    Func::Asin => arg.asin(),
-                    Func::Asinh => arg.asinh(),
-                    Func::Cos => arg.cos(),
-                    Func::Cosh => arg.cosh(),
-                    Func::Acos => arg.acos(),
-                    Func::Acosh => arg.acosh(),
-                    Func::Tan => arg.tan(),
-                    Func::Tanh => arg.tanh(),
-                    Func::Atan => arg.atan(),
-                    Func::Atanh => arg.tanh(),
-                    Func::Ln => arg.ln(),
-                    Func::Log(b) => arg.log(*b),
-                    Func::Degs => arg.to_degrees(),
-                    Func::Rads => arg.to_radians(),
-                    Func::Sq => arg.powi(2),
-                    Func::Sqrt => arg.sqrt(),
-                    Func::Cube => arg.powi(3),
-                    Func::Cbrt => arg.cbrt(),
-                    Func::Round => arg.round(),
-                    Func::Ceil => arg.ceil(),
-                    Func::Floor => arg.floor(),
-                    Func::Exp => arg.exp(),
-                    Func::Exp2 => arg.exp2(),
-                    Func::Fract => arg.fract(),
-                    Func::Recip => arg.recip(),
+                    Func::Abs => return Ok(self.interpret_expr(&args[0])?.abs()),
+                    Func::Sin => arguments[0].sin(),
+                    Func::Sinh => arguments[0].sinh(),
+                    Func::Asin => arguments[0].asin(),
+                    Func::Asinh => arguments[0].asinh(),
+                    Func::Cos => arguments[0].cos(),
+                    Func::Cosh => arguments[0].cosh(),
+                    Func::Acos => arguments[0].acos(),
+                    Func::Acosh => arguments[0].acosh(),
+                    Func::Tan => arguments[0].tan(),
+                    Func::Tanh => arguments[0].tanh(),
+                    Func::Atan => arguments[0].atan(),
+                    Func::Atanh => arguments[0].tanh(),
+                    Func::Ln => arguments[0].ln(),
+                    Func::Log => arguments[1].log(arguments[0]),
+                    Func::Degs => arguments[0].to_degrees(),
+                    Func::Rads => arguments[0].to_radians(),
+                    Func::Sq => arguments[0].powi(2),
+                    Func::Sqrt => arguments[0].sqrt(),
+                    Func::Cube => arguments[0].powi(3),
+                    Func::Cbrt => arguments[0].cbrt(),
+                    Func::Round => arguments[0].round(),
+                    Func::Ceil => arguments[0].ceil(),
+                    Func::Floor => arguments[0].floor(),
+                    Func::Exp => arguments[0].exp(),
+                    Func::Exp2 => arguments[0].exp2(),
+                    Func::Fract => arguments[0].fract(),
+                    Func::Recip => arguments[0].recip(),
                 };
                 Ok(Value::Float(val))
             }
@@ -309,6 +342,7 @@ impl Display for Value {
             Self::Fn(func) => inner_write(func, f),
             Self::String(string) => inner_write(string, f),
             Self::Unit => inner_write("()", f),
+            Self::Bool(bool) => inner_write(bool, f),
         }
     }
 }
@@ -470,6 +504,30 @@ impl Not for Value {
                 "! cannot be applied to this data type".to_string(),
             )),
         }
+    }
+}
+
+impl PartialOrd for Value {
+    fn gt(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Int(lhs), Value::Int(rhs)) => lhs > rhs,
+            (Value::Float(lhs), Value::Float(rhs)) => lhs > rhs,
+            (Value::Int(lhs), Value::Float(rhs)) => *lhs as f64 > *rhs,
+            (Value::Float(lhs), Value::Int(rhs)) => *lhs > *rhs as f64,
+            _ => panic!("Cannot calculate rem of non numeric types"),
+        }
+    }
+
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let res = match (self, other) {
+            (Value::Int(lhs), Value::Int(rhs)) => lhs.cmp(rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => return (*lhs).partial_cmp(rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => return (*lhs as f64).partial_cmp(rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => return (*lhs).partial_cmp(&(*rhs as f64)),
+            (Value::String(lhs), Value::String(rhs)) => lhs.len().cmp(&rhs.len()),
+            _ => return None,
+        };
+        Some(res)
     }
 }
 
