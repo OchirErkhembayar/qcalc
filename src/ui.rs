@@ -155,7 +155,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
         match popup {
             Popup::Help => {
                 let message = "
-Available Functions
+Built in Functions
 -------------------
 _arg_ should be replaced by an expression eg. ln(2)
 _rads_ indicates that the argument should be in radians eg. cos(p)
@@ -169,8 +169,6 @@ fract(_arg_)      recip(_arg_)  abs(_arg_)
 
 Examples: \"log10(100)\", \"cos(pi)\"
 
-Creating variables: \"let x = 5 * 20\"
-
 Shortcuts
 ---------
 (Ctrl s) Save current values and functions
@@ -183,12 +181,13 @@ Shortcuts
                 let message = "
 Defining Functions / Variables
 ----------------
-Defining: fn [NAME]([ARG]..) [BODY]
+Syntax: let [NAME] = |[ARG]..| [BODY]
 - NAME: Name of the function
 - ARGS: Parameter (comma separated identifier)
 - BODY: The expression
 
-Example: fn myfun(a, b) a + b^2
+Example: let myfun = |a, b| a + b ** 2
+         let foo = cos(pi)
 
 Calling: [NAME]([ARG]...)
 - NAME: Name of the function
@@ -197,6 +196,7 @@ Calling: [NAME]([ARG]...)
 Examples:
 - myfun(10)
 - myfun(cos(p))
+- foo // Where foo is a variable
 
 Undefining variables and functions: undef([ARG]..)
 

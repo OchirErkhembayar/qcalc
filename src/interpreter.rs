@@ -17,12 +17,20 @@ pub struct Interpreter {
     env: HashMap<String, Value>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     Expr(Expr),
-    Fn(String, Vec<String>, Expr),
     Assign(String, Expr),
     Undef(Vec<String>),
+}
+impl Stmt {
+    pub(crate) fn format(&self) -> String {
+        match self {
+            Self::Undef(variables) => format!("undef({})", variables.join(", ")),
+            Self::Expr(expr) => expr.format(),
+            Self::Assign(name, expr) => format!("let {} = {}", name, expr.format()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +38,8 @@ pub enum Value {
     Fn(Function),
     Float(f64),
     Int(i64),
+    String(String),
+    Unit,
 }
 
 impl Value {
@@ -37,8 +47,10 @@ impl Value {
         match self {
             Self::Float(float) => format!("let {} = {}", name, float),
             Self::Int(int) => format!("let {} = {}", name, int),
+            Self::String(string) => string.to_owned(),
+            Self::Unit => "()".to_string(),
             Self::Fn(func) => format!(
-                "fn {}({}) {}",
+                "let {} = |{}| {}",
                 name,
                 func.parameters.join(", "),
                 func.body.format()
@@ -76,9 +88,9 @@ pub struct Function {
 #[derive(Debug, PartialEq)]
 pub enum InterpretError {
     UnknownVariable(String),
-    UnknownFunction(String),
+    Uncallable(Value),
     UnInvokedFunction(String),
-    WrongArity(String, usize, usize),
+    WrongArity(Value, usize, usize),
     InvalidArgument(String),
 }
 
@@ -108,30 +120,23 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmt: Stmt) -> Result<Option<Value>, InterpretError> {
+    pub fn interpret(&mut self, stmt: Stmt) -> Result<Value, InterpretError> {
         match stmt {
             Stmt::Assign(name, expr) => {
                 let val = self.interpret_expr(&expr)?;
                 self.env.insert(name, val.clone()); // Some way to remove this clone?
-                Ok(Some(val))
+                Ok(val)
             }
             Stmt::Expr(expr) => {
                 let ans = self.interpret_expr(&expr)?;
                 self.env.insert("ans".to_string(), ans.clone()); // Some way to remove this clone?
-                Ok(Some(ans))
-            }
-            Stmt::Fn(name, params, body) => {
-                self.env.insert(
-                    name,
-                    Value::Fn(Function::new(params, body, self.env.clone())),
-                );
-                Ok(None)
+                Ok(ans)
             }
             Stmt::Undef(names) => {
                 names.iter().for_each(|name| {
                     self.env.remove(name);
                 });
-                Ok(None)
+                Ok(Value::Unit)
             }
         }
     }
@@ -145,13 +150,6 @@ impl Interpreter {
 
     pub fn with_env(env: HashMap<String, Value>) -> Self {
         Self { env }
-    }
-
-    pub fn declare_function(&mut self, name: String, parameters: Vec<String>, body: Expr) {
-        self.env.insert(
-            name,
-            Value::Fn(Function::new(parameters, body, self.env.clone())),
-        );
     }
 
     pub fn interpret_expr(&self, expr: &Expr) -> Result<Value, InterpretError> {
@@ -168,7 +166,7 @@ impl Interpreter {
                     Token::Div => left / right,
                     Token::Mod => left % right,
                     Token::BitAnd => (left & right)?,
-                    Token::BitOr => (left | right)?,
+                    Token::Pipe => (left | right)?,
                     Token::BitXor => (left ^ right)?,
                     Token::Shl => (left << right)?,
                     Token::Shr => (left >> right)?,
@@ -177,6 +175,11 @@ impl Interpreter {
                 };
                 Ok(val)
             }
+            Expr::Fun(params, body) => Ok(Value::Fn(Function::new(
+                params.to_owned(),
+                *body.to_owned(),
+                self.env.clone(),
+            ))),
             Expr::Grouping(expr) => self.interpret_expr(expr),
             Expr::Unary(expr, operator) => match operator {
                 Token::Not => self.interpret_expr(expr)?.not(),
@@ -184,12 +187,14 @@ impl Interpreter {
                 _ => unreachable!(),
             },
             Expr::Call(name, args) => {
-                if let Some(Value::Fn(func)) = self.env.get(name) {
-                    if args.len() != func.arity {
+                let function = self.interpret_expr(name)?;
+                if let Value::Fn(func) = function {
+                    let arity = func.arity;
+                    if args.len() != arity {
                         Err(InterpretError::WrongArity(
-                            name.to_owned(),
+                            Value::Fn(func),
                             args.len(),
-                            func.arity,
+                            arity,
                         ))
                     } else {
                         let mut vals = vec![];
@@ -199,15 +204,12 @@ impl Interpreter {
                         func.call(vals)
                     }
                 } else {
-                    Err(InterpretError::UnknownFunction(name.to_owned()))
+                    Err(InterpretError::Uncallable(function))
                 }
             }
             Expr::Var(var) => {
                 if let Some(val) = self.env.get(var) {
-                    match val {
-                        Value::Fn(_) => Err(InterpretError::UnInvokedFunction(var.clone())),
-                        Value::Float(_) | Value::Int(_) => Ok(val.to_owned()),
-                    }
+                    Ok(val.to_owned())
                 } else {
                     Err(InterpretError::UnknownVariable(var.clone()))
                 }
@@ -287,7 +289,7 @@ impl Display for InterpretError {
             "{}",
             match self {
                 Self::UnknownVariable(v) => format!("Unknown variable {}", v),
-                Self::UnknownFunction(f) => format!("Unknown function {}", f),
+                Self::Uncallable(f) => format!("Unknown function {}", f),
                 Self::UnInvokedFunction(f) => format!("Uninvoked function {}", f),
                 Self::InvalidArgument(m) => m.clone(),
                 Self::WrongArity(name, actual, expected) => format!(
@@ -305,6 +307,8 @@ impl Display for Value {
             Self::Float(float) => inner_write(float, f),
             Self::Int(int) => inner_write(int, f),
             Self::Fn(func) => inner_write(func, f),
+            Self::String(string) => inner_write(string, f),
+            Self::Unit => inner_write("()", f),
         }
     }
 }
@@ -471,7 +475,21 @@ impl Not for Value {
 
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}) {}", self.parameters.join(", "), self.body)
+        write!(f, "|{}| {}", self.parameters.join(", "), self.body)
+    }
+}
+
+impl Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Stmt::Assign(name, expr) => format!("let {} = {}", name, expr),
+                Stmt::Expr(expr) => return inner_write(expr, f),
+                Stmt::Undef(vars) => format!("undef({})", vars.join(", ")),
+            }
+        )
     }
 }
 
@@ -523,7 +541,10 @@ mod tests {
     #[test]
     fn function_with_closure() {
         check_with_vars(
-            Expr::Call("foo".to_string(), vec![Expr::Var("bar".to_string())]),
+            Expr::Call(
+                Box::new(Expr::Var("foo".to_string())),
+                vec![Expr::Var("bar".to_string())],
+            ),
             Ok(Value::Int(12)),
             HashMap::from_iter([
                 (

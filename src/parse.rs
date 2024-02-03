@@ -84,8 +84,9 @@ pub enum Expr {
     Float(f64),
     Int(i64),
     Unary(Box<Expr>, Token),
-    Call(String, Vec<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
     Func(Func, Box<Expr>),
+    Fun(Vec<String>, Box<Expr>),
     Var(String),
 }
 
@@ -99,6 +100,9 @@ impl Expr {
             Self::Var(var) => var.to_string(),
             Self::Binary(left, operator, right) => {
                 format!("{}{}{}", left.format(), operator, right.format())
+            }
+            Self::Fun(params, body) => {
+                format!("|{}| {}", params.join(", "), body,)
             }
             Self::Call(name, args) => {
                 format!(
@@ -161,7 +165,6 @@ impl<'a> Parser<'a> {
 impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Result<Stmt, ParseErr> {
         let res = match self.peek() {
-            Token::Fn => self.function()?,
             Token::Let => self.assign()?,
             Token::Undef => self.undef()?,
             _ => Stmt::Expr(self.expression()?),
@@ -172,39 +175,6 @@ impl<'a> Parser<'a> {
             // A complete expression was parsed but there were more tokens
             Err(ParseErr::new(self.peek().clone(), "Unexpected token"))
         }
-    }
-
-    fn function(&mut self) -> Result<Stmt, ParseErr> {
-        self.advance();
-        let name = match self.advance() {
-            Token::Ident(name) => name,
-            token => return Err(ParseErr::new(token, "Missing function name")),
-        };
-        self.consume(Token::LParen, "Missing opening parentheses")?;
-        let mut parameters = Vec::new();
-        if *self.peek() != Token::RParen {
-            loop {
-                let next = self.advance();
-                if let Token::Ident(arg) = next {
-                    if parameters.contains(&arg) {
-                        return Err(ParseErr::new(
-                            Token::Ident(arg),
-                            "Function parameters must be unique",
-                        ));
-                    }
-                    parameters.push(arg);
-                } else {
-                    return Err(ParseErr::new(next, "Expected argument"));
-                }
-                if *self.peek() != Token::Comma {
-                    break;
-                }
-                self.advance();
-            }
-        }
-        self.consume(Token::RParen, "Missing closing parentheses")?;
-        let expr = self.expression()?;
-        Ok(Stmt::Fn(name, parameters, expr))
     }
 
     fn undef(&mut self) -> Result<Stmt, ParseErr> {
@@ -247,12 +217,43 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr, ParseErr> {
-        self.bit_binary()
+        match self.peek() {
+            Token::Pipe => self.callable(),
+            _ => self.bit_binary(),
+        }
+    }
+
+    fn callable(&mut self) -> Result<Expr, ParseErr> {
+        self.consume(Token::Pipe, "Missing opening pipe")?;
+        let mut parameters = Vec::new();
+        if *self.peek() != Token::Pipe {
+            loop {
+                let next = self.advance();
+                if let Token::Ident(arg) = next {
+                    if parameters.contains(&arg) {
+                        return Err(ParseErr::new(
+                            Token::Ident(arg),
+                            "Function parameters must be unique",
+                        ));
+                    }
+                    parameters.push(arg);
+                } else {
+                    return Err(ParseErr::new(next, "Expected argument"));
+                }
+                if *self.peek() != Token::Comma {
+                    break;
+                }
+                self.advance();
+            }
+        }
+        self.consume(Token::Pipe, "Missing closing pipe")?;
+        let expr = Box::new(self.expression()?);
+        Ok(Expr::Fun(parameters, expr))
     }
 
     fn bit_binary(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.bit_shift()?;
-        while matches!(*self.peek(), Token::BitOr | Token::BitXor | Token::BitAnd) {
+        while matches!(*self.peek(), Token::Pipe | Token::BitXor | Token::BitAnd) {
             let operator = self.advance();
             let right = self.bit_shift()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right))
@@ -314,25 +315,24 @@ impl<'a> Parser<'a> {
     }
 
     fn call(&mut self) -> Result<Expr, ParseErr> {
-        let expr = self.primary()?;
+        let mut expr = self.primary()?;
 
-        if let Expr::Var(name) = &expr {
-            if self.check(&Token::LParen) {
-                self.advance();
-                let mut args = vec![];
-                if !self.check(&Token::RParen) {
-                    loop {
-                        args.push(self.expression()?);
-                        if !self.check(&Token::Comma) {
-                            break;
-                        }
-                        self.advance();
+        while *self.peek() == Token::LParen {
+            self.advance();
+            let mut args = vec![];
+            if !self.check(&Token::RParen) {
+                loop {
+                    args.push(self.expression()?);
+                    if !self.check(&Token::Comma) {
+                        break;
                     }
+                    self.advance();
                 }
-                self.consume(Token::RParen, "Missing closing parentheses")?;
-                return Ok(Expr::Call(name.to_owned(), args));
             }
+            self.consume(Token::RParen, "Missing closing parentheses")?;
+            expr = Expr::Call(Box::new(expr), args);
         }
+
         Ok(expr)
     }
 
@@ -541,17 +541,19 @@ mod tests {
 
     #[test]
     fn test_function_mult_params() {
-        let expected = Stmt::Fn(
+        let expected = Stmt::Assign(
             "foo".to_string(),
-            vec!["x".to_string(), "y".to_string()],
-            Expr::Binary(
-                Box::new(Expr::Var("x".to_string())),
-                Token::Plus,
-                Box::new(Expr::Var("y".to_string())),
+            Expr::Fun(
+                vec!["x".to_string(), "y".to_string()],
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Var("x".to_string())),
+                    Token::Plus,
+                    Box::new(Expr::Var("y".to_string())),
+                )),
             ),
         );
 
-        let mut tokenizer = Tokenizer::new("fn foo(x, y) x + y".chars().peekable()).peekable();
+        let mut tokenizer = Tokenizer::new("let foo = |x, y| x + y".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         let stmt = Parser::new(tokenizer, current).parse().unwrap();
         assert_eq!(stmt, expected);
@@ -559,17 +561,19 @@ mod tests {
 
     #[test]
     fn test_function_single_param() {
-        let expected = Stmt::Fn(
+        let expected = Stmt::Assign(
             "foo".to_string(),
-            vec!["y".to_string()],
-            Expr::Binary(
-                Box::new(Expr::Var("y".to_string())),
-                Token::Plus,
-                Box::new(Expr::Int(1)),
+            Expr::Fun(
+                vec!["y".to_string()],
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Var("y".to_string())),
+                    Token::Plus,
+                    Box::new(Expr::Int(1)),
+                )),
             ),
         );
 
-        let mut tokenizer = Tokenizer::new("fn foo(y)y+1".chars().peekable()).peekable();
+        let mut tokenizer = Tokenizer::new("let foo = |y| y+1".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         let stmt = Parser::new(tokenizer, current).parse().unwrap();
         assert_eq!(stmt, expected);
@@ -582,7 +586,7 @@ mod tests {
             "Function parameters must be unique",
         ));
 
-        let mut tokenizer = Tokenizer::new("fn foo(y, y, y, y)".chars().peekable()).peekable();
+        let mut tokenizer = Tokenizer::new("let foo = |y, y, y, y|".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), expected);
     }
