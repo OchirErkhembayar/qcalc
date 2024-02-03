@@ -328,4 +328,12 @@ mod tests {
         input_and_evaluate(&mut app, "bar(3)(2)");
         assert_output(&app, Value::Int(9));
     }
+
+    #[test]
+    fn test_if_else() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "if 0 then 3 % 5 else \"this is the answer\"");
+        assert_output(&app, Value::String("this is the answer".to_string()));
+    }
 }

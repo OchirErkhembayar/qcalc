@@ -124,13 +124,19 @@ pub enum Expr {
     Fun(Vec<String>, Box<Expr>),
     Var(String),
     Bool(bool),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
+    String(String),
 }
 
 impl Expr {
     pub fn format(&self) -> String {
         match self {
             Self::Float(float) => float.to_string(),
+            Self::If(cond, then, else_expr) => {
+                format!("if {} then {} else {}", cond, then, else_expr)
+            }
             Self::Int(int) => int.to_string(),
+            Self::String(string) => format!("\"{}\"", string.clone()),
             Self::Unary(expr, operator) => format!("{}{}", operator, expr.format()),
             Self::Grouping(expr) => format!("({})", expr.format()),
             Self::Var(var) => var.to_string(),
@@ -264,7 +270,7 @@ impl<'a> Parser<'a> {
     fn expression(&mut self) -> Result<Expr, ParseErr> {
         match self.peek() {
             Token::Pipe => self.callable(),
-            _ => self.or(),
+            _ => self.if_expr(),
         }
     }
 
@@ -294,6 +300,24 @@ impl<'a> Parser<'a> {
         self.consume(Token::Pipe, "Missing closing pipe")?;
         let expr = Box::new(self.expression()?);
         Ok(Expr::Fun(parameters, expr))
+    }
+
+    fn if_expr(&mut self) -> Result<Expr, ParseErr> {
+        if *self.peek() == Token::If {
+            self.advance();
+            let cond = Box::new(self.expression()?);
+            eprintln!("Cond: {:?}", cond);
+            self.consume(Token::Then, "Expected then after condition")?;
+            let then = Box::new(self.expression()?);
+            eprintln!("Then: {:?}", then);
+            println!("Next: {:?}", self.tokenizer.peek());
+            self.consume(Token::Else, "Expected else after then body")?;
+            let else_expr = Box::new(self.expression()?);
+            eprintln!("Else: {:?}", else_expr);
+            Ok(Expr::If(cond, then, else_expr))
+        } else {
+            self.or()
+        }
     }
 
     fn or(&mut self) -> Result<Expr, ParseErr> {
@@ -433,6 +457,11 @@ impl<'a> Parser<'a> {
             }
             Token::Int(int) => {
                 let res = Ok(Expr::Int(*int));
+                self.advance();
+                res
+            }
+            Token::String(string) => {
+                let res = Ok(Expr::String(string.clone()));
                 self.advance();
                 res
             }
@@ -712,6 +741,24 @@ mod tests {
         ));
 
         let mut tokenizer = Tokenizer::new("true || false".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_if() {
+        let expected = Stmt::Expr(Expr::If(
+            Box::new(Expr::Bool(true)),
+            Box::new(Expr::Int(1)),
+            Box::new(Expr::String("this is the answer".to_string())),
+        ));
+
+        let mut tokenizer = Tokenizer::new(
+            "if true then 1 else \"this is the answer\""
+                .chars()
+                .peekable(),
+        )
+        .peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }
