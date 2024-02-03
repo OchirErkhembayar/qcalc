@@ -359,7 +359,6 @@ mod tests {
     #[test]
     fn test_if_else() {
         let str = "if 1 == 3 then 3 % 3 else \"lol\"".chars().peekable();
-        println!("str: {:?}", str);
         let tokens = Tokenizer::new(str).collect::<Vec<_>>();
         assert_eq!(
             tokens,

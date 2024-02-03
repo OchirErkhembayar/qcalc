@@ -306,14 +306,10 @@ impl<'a> Parser<'a> {
         if *self.peek() == Token::If {
             self.advance();
             let cond = Box::new(self.expression()?);
-            eprintln!("Cond: {:?}", cond);
             self.consume(Token::Then, "Expected then after condition")?;
             let then = Box::new(self.expression()?);
-            eprintln!("Then: {:?}", then);
-            println!("Next: {:?}", self.tokenizer.peek());
             self.consume(Token::Else, "Expected else after then body")?;
             let else_expr = Box::new(self.expression()?);
-            eprintln!("Else: {:?}", else_expr);
             Ok(Expr::If(cond, then, else_expr))
         } else {
             self.or()
