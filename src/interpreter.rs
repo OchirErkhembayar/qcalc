@@ -69,12 +69,16 @@ impl Value {
         }
     }
 
-    fn abs(&self) -> Self {
-        match self {
+    fn abs(&self) -> Result<Self, InterpretError> {
+        Ok(match self {
             Value::Int(int) => Value::Int(int.abs()),
             Value::Float(float) => Value::Float(float.abs()),
-            _ => unreachable!(),
-        }
+            _ => {
+                return Err(InterpretError::InvalidArgument(
+                    "abs expects a number type as an argument".to_string(),
+                ))
+            }
+        })
     }
 
     fn pow(&self, rhs: Self) -> Self {
@@ -321,7 +325,7 @@ impl Interpreter {
                     ));
                 }
                 let val = match func {
-                    Func::Abs => return Ok(self.interpret_expr(&args[0])?.abs()),
+                    Func::Abs => return Ok(self.interpret_expr(&args[0])?.abs()?),
                     Func::Sin => arguments[0].to_float()?.sin(),
                     Func::Sinh => arguments[0].to_float()?.sinh(),
                     Func::Asin => arguments[0].to_float()?.asin(),
