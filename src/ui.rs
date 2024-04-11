@@ -152,9 +152,9 @@ pub fn render(app: &mut App, f: &mut Frame) {
             f.render_widget(Clear, area);
             f.render_widget(message_text, area);
         };
-        match popup {
+        let message = match popup {
             Popup::Help => {
-                let message = "
+                "
 Built in Functions
 -------------------
 _arg_ should be replaced by an expression eg. ln(2)
@@ -174,13 +174,12 @@ Shortcuts
 (Ctrl s) Save current values and functions
 (Ctrl e/v) Reset exprs/vars
 (Ctrl x) Delete selected expression
-";
-                render_popup(message);
+"
             }
             Popup::Function => {
-                let message = "
+                "
 Defining Functions / Variables
-----------------
+------------------------------
 Syntax: let [NAME] = |[ARG]..| [BODY]
 - NAME: Name of the function
 - ARGS: Parameter (comma separated identifier)
@@ -203,10 +202,34 @@ Undefining variables and functions: undef([ARG]..)
 If existing functions / variables are used in a custom function
 then a snapshot of them is taken such that even if they are changed
 or redefined, the custom function will use the old values
-";
-                render_popup(message);
+"
             }
-        }
+            Popup::Language => {
+                "
+Language Details
+----------------
+Types
+    - integers 10
+    - floats 12.0
+    - booleans true
+    - strings \"Hello, World!\"
+    - arrays [1, true, \"Hi\", 2.0]
+Control flow
+    if [BOOL_EXPR] then [THEN_EXPR] else [ELSE_EXPR]
+    eg. if true then \"foo\" else \"bar\"
+Arrays
+    map(_array_, _callback_)
+        eg. map([1, 2, 3], |x| x ** 2)
+    filter(_array_, _callback_)
+        eg. filter([1, 2, 3], |x| odd(x))
+    sum(_array_)
+        eg. sum([1, 2, 3, 4, 5])
+    fold(_array_, _callback_, _initial_value_)
+        eg. fold([1, 2, 3], |acc, curr| acc + curr, 1)
+"
+            }
+        };
+        render_popup(message);
     }
 
     // Footer
@@ -218,7 +241,7 @@ or redefined, the custom function will use the old values
         let message = if app.popup.is_some() {
             "(Esc) Back"
         } else {
-            "(Esc) Quit | (Ctrl h) Help | (Ctrl f) Custom fn/var help"
+            "(Esc) Quit | (Ctrl h) Help | (Ctrl l) Syntax | (Ctrl f) Custom fn/var help"
         };
         let help = Paragraph::new(Text::styled(
             message,

@@ -19,6 +19,7 @@ use crate::{
 pub enum Popup {
     Help,
     Function,
+    Language,
 }
 
 pub struct App<'ta> {

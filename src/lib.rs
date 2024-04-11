@@ -81,6 +81,9 @@ fn update(app: &mut App, key_event: KeyEvent) {
             KeyCode::Char('h') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Help);
             }
+            KeyCode::Char('l') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.popup = Some(Popup::Language);
+            }
             KeyCode::Char('f') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Function);
             }
