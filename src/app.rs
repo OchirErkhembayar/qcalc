@@ -76,7 +76,7 @@ impl<'ta> App<'ta> {
         });
     }
 
-    pub fn update_rc(&mut self) {
+    fn update_rc(&mut self) {
         let commands = self
             .interpreter
             .env()
@@ -138,6 +138,7 @@ impl<'ta> App<'ta> {
                     Ok(res) => {
                         self.set_output(res);
                         self.input = textarea(None, None, None);
+                        self.update_rc();
                     }
                     Err(err) => self.set_err(err.to_string()),
                 }

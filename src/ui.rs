@@ -171,7 +171,6 @@ Examples: \"log10(100)\", \"cos(pi)\"
 
 Shortcuts
 ---------
-(Ctrl s) Save current values and functions
 (Ctrl e/v) Reset exprs/vars
 (Ctrl x) Delete selected expression
 "
