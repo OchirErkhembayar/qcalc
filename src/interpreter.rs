@@ -325,7 +325,7 @@ impl Interpreter {
                     ));
                 }
                 let val = match func {
-                    Func::Abs => return Ok(self.interpret_expr(&args[0])?.abs()?),
+                    Func::Abs => return self.interpret_expr(&args[0])?.abs(),
                     Func::Sin => arguments[0].to_float()?.sin(),
                     Func::Sinh => arguments[0].to_float()?.sinh(),
                     Func::Asin => arguments[0].to_float()?.asin(),

@@ -40,6 +40,7 @@ impl<'ta> App<'ta> {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&rc_file)
             .expect("Failed to create RC file");
         let mut app = Self {
@@ -99,7 +100,7 @@ impl<'ta> App<'ta> {
                     .write_all(commands.as_bytes())
                     .map_err(|e| format!("ERROR: Failed to write to rc file, {}", e))
                 {
-                    Ok(_) => self.set_output(Value::String("Success".to_string())),
+                    Ok(_) => {}
                     Err(err) => self.set_err(err.to_string()),
                 }
             }
@@ -281,11 +282,11 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs to run consecutively"]
     fn test_rc_file() {
         let mut app = new_app_empty_rc();
         input_and_evaluate(&mut app, "let x = 5");
         input_and_evaluate(&mut app, "let foo = |a, b| a + b * 5");
-        app.update_rc();
         drop(app);
         let mut app = new_app();
         input_and_evaluate(&mut app, "x");
