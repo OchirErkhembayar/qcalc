@@ -203,18 +203,22 @@ impl<'a> Iterator for Tokenizer<'a> {
                             }) {
                                 hex.push(self.input.next().unwrap());
                             }
-                            Token::Int(i64::from_str_radix(&hex, 16).unwrap())
+                            if hex.is_empty() {
+                                Token::Int(0)
+                            } else {
+                                Token::Int(i64::from_str_radix(&hex, 16).unwrap())
+                            }
                         }
                         'b' | 'B' => {
                             let mut hex = String::new();
-                            while self
-                                .input
-                                .peek()
-                                .is_some_and(|c| c.is_numeric() || matches!(c, '0' | '1'))
-                            {
+                            while self.input.peek().is_some_and(|c| matches!(c, '0' | '1')) {
                                 hex.push(self.input.next().unwrap());
                             }
-                            Token::Int(i64::from_str_radix(&hex, 2).unwrap())
+                            if hex.is_empty() {
+                                Token::Int(0)
+                            } else {
+                                Token::Int(i64::from_str_radix(&hex, 2).unwrap())
+                            }
                         }
                         _ => unreachable!(),
                     }
