@@ -31,11 +31,12 @@ pub struct App<'ta> {
     pub expr_selector: usize,
     pub should_quit: bool,
     pub popup: Option<Popup>,
+    should_save: bool,
     rc_file: PathBuf,
 }
 
 impl<'ta> App<'ta> {
-    pub fn new(rc_file: PathBuf) -> Self {
+    pub fn new(rc_file: PathBuf, should_save: bool) -> Self {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -53,6 +54,7 @@ impl<'ta> App<'ta> {
             should_quit: false,
             popup: None,
             rc_file,
+            should_save,
         };
         app.run_commands(file);
         app
@@ -139,7 +141,10 @@ impl<'ta> App<'ta> {
                     Ok(res) => {
                         self.set_output(res);
                         self.input = textarea(None, None, None);
-                        self.update_rc();
+                        // Hack for testing. Allow user to customise later
+                        if self.should_save {
+                            self.update_rc();
+                        }
                     }
                     Err(err) => self.set_err(err.to_string()),
                 }
@@ -218,12 +223,12 @@ mod tests {
     const TEST_FILE: &str = "./test";
 
     fn new_app<'a>() -> App<'a> {
-        App::new(PathBuf::from(TEST_FILE))
+        App::new(PathBuf::from(TEST_FILE), false)
     }
 
     fn new_app_empty_rc<'a>() -> App<'a> {
         File::create(TEST_FILE).expect("Failed to create test file");
-        App::new(PathBuf::from(TEST_FILE))
+        App::new(PathBuf::from(TEST_FILE), true)
     }
 
     fn input_and_evaluate(app: &mut App, input: &str) {
@@ -282,7 +287,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs to run consecutively"]
     fn test_rc_file() {
         let mut app = new_app_empty_rc();
         input_and_evaluate(&mut app, "let x = 5");
@@ -387,5 +391,13 @@ mod tests {
                 Value::List(vec![Value::Int(3), Value::Int(4)]),
             ]),
         );
+    }
+
+    #[test]
+    fn test_factorial() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "factorial(15)");
+        assert_output(&app, Value::Int(1307674368000));
     }
 }

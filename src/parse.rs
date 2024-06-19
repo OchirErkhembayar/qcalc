@@ -37,6 +37,7 @@ const FOLD: &str = "fold";
 const FILTER: &str = "filter";
 const ODD: &str = "odd";
 const EVEN: &str = "even";
+const FACTORIAL: &str = "factorial";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -87,6 +88,7 @@ pub enum Func {
     Filter,
     Odd,
     Even,
+    Fact,
 }
 
 impl Func {
@@ -126,6 +128,7 @@ impl Func {
             Func::Filter => 2,
             Func::Odd => 1,
             Func::Even => 1,
+            Func::Fact => 1,
         }
     }
 }
@@ -555,6 +558,7 @@ impl<'a> Parser<'a> {
                     FILTER => Func::Filter,
                     EVEN => Func::Even,
                     ODD => Func::Odd,
+                    FACTORIAL => Func::Fact,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -630,6 +634,7 @@ impl Display for Func {
                 Func::Filter => FILTER,
                 Func::Odd => ODD,
                 Func::Even => EVEN,
+                Func::Fact => FACTORIAL,
             }
         )
     }
@@ -809,6 +814,15 @@ mod tests {
                 .peekable(),
         )
         .peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_fact() {
+        let expected = Stmt::Expr(Expr::Func(Func::Fact, vec![Expr::Int(5)]));
+
+        let mut tokenizer = Tokenizer::new("factorial(5)".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }

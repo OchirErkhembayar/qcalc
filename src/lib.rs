@@ -27,7 +27,7 @@ pub fn tui() -> Result<(), Box<dyn Error>> {
     tui.enter().expect("Failed to initialise TUI");
     let mut rc_file = dirs_next::home_dir().expect("Could not find home directory");
     rc_file.push(RC_PATH);
-    let mut app = App::new(rc_file);
+    let mut app = App::new(rc_file, true);
 
     while !app.should_quit {
         tui.draw(&mut app)?;
