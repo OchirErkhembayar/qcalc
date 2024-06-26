@@ -407,6 +407,21 @@ impl Interpreter {
                             return Ok(Value::Int(get_fact(arg)));
                         }
                     }
+                    Func::Range => {
+                        let start = arguments[0].to_int()?;
+                        let end = arguments[1].to_int()?;
+                        if start < 0 || end <= start {
+                            return Err(InterpretError::InvalidArgument(
+                                "Invalid range".to_string(),
+                            ));
+                        } else {
+                            let vec = (start..end)
+                                .into_iter()
+                                .map(|i| Value::Int(i))
+                                .collect::<Vec<_>>();
+                            return Ok(Value::List(vec));
+                        }
+                    }
                 };
                 Ok(Value::Float(val))
             }

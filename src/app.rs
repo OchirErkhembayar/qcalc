@@ -400,4 +400,15 @@ mod tests {
         input_and_evaluate(&mut app, "factorial(15)");
         assert_output(&app, Value::Int(1307674368000));
     }
+
+    #[test]
+    fn test_range() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "range(0, 3)");
+        assert_output(
+            &app,
+            Value::List(vec![Value::Int(0), Value::Int(1), Value::Int(2)]),
+        );
+    }
 }

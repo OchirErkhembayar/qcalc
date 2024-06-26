@@ -38,6 +38,7 @@ const FILTER: &str = "filter";
 const ODD: &str = "odd";
 const EVEN: &str = "even";
 const FACTORIAL: &str = "factorial";
+const RANGE: &str = "range";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -89,6 +90,7 @@ pub enum Func {
     Odd,
     Even,
     Fact,
+    Range,
 }
 
 impl Func {
@@ -129,6 +131,7 @@ impl Func {
             Func::Odd => 1,
             Func::Even => 1,
             Func::Fact => 1,
+            Func::Range => 2,
         }
     }
 }
@@ -559,6 +562,7 @@ impl<'a> Parser<'a> {
                     EVEN => Func::Even,
                     ODD => Func::Odd,
                     FACTORIAL => Func::Fact,
+                    RANGE => Func::Range,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -635,6 +639,7 @@ impl Display for Func {
                 Func::Odd => ODD,
                 Func::Even => EVEN,
                 Func::Fact => FACTORIAL,
+                Func::Range => RANGE,
             }
         )
     }
