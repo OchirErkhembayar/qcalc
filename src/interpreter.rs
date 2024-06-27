@@ -395,6 +395,15 @@ impl Interpreter {
                     Func::Exp2 => arguments[0].to_float()?.exp2(),
                     Func::Fract => arguments[0].to_float()?.fract(),
                     Func::Recip => arguments[0].to_float()?.recip(),
+                    Func::Quadr => {
+                        let a = arguments[0].to_float()?;
+                        let b = arguments[1].to_float()?;
+                        let c = arguments[2].to_float()?;
+                        let n = (b.powi(2) - 4.0 * a * c).powf(0.5) / (2.0 * a);
+                        let pos = -b + n;
+                        let neg = -b - n;
+                        return Ok(Value::List(vec![Value::Float(pos), Value::Float(neg)]));
+                    }
                     Func::Map => {
                         let list = arguments[0].to_list()?;
                         let callable = arguments[1].to_callable()?;

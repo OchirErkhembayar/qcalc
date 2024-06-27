@@ -42,6 +42,7 @@ const RANGE: &str = "range";
 const ELEM: &str = "elem";
 const MIN: &str = "min";
 const MAX: &str = "max";
+const QUADR: &str = "quadr";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -97,6 +98,7 @@ pub enum Func {
     Elem,
     Min,
     Max,
+    Quadr,
 }
 
 impl Func {
@@ -141,6 +143,7 @@ impl Func {
             Func::Elem => 2,
             Func::Min => 1,
             Func::Max => 1,
+            Func::Quadr => 3,
         }
     }
 }
@@ -332,7 +335,7 @@ impl<'a> Parser<'a> {
     fn callable(&mut self) -> Result<Expr, ParseErr> {
         self.consume(Token::Pipe, "Missing opening pipe")?;
         let mut parameters = Vec::new();
-        if *self.peek() != Token::Pipe {
+        if *self.peek() != Token::Pipe && !self.at_end() {
             loop {
                 let next = self.advance();
                 if let Token::Ident(arg) = next {
@@ -445,21 +448,11 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.exponent()?;
+        let mut expr = self.unary()?;
         while *self.peek() == Token::Div
             || *self.peek() == Token::Mult
             || *self.peek() == Token::Mod
         {
-            let operator = self.advance();
-            let right = self.exponent()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        }
-        Ok(expr)
-    }
-
-    fn exponent(&mut self) -> Result<Expr, ParseErr> {
-        let mut expr = self.unary()?;
-        while *self.peek() == Token::Pow {
             let operator = self.advance();
             let right = self.unary()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -473,8 +466,18 @@ impl<'a> Parser<'a> {
             let right = self.unary()?;
             Ok(Expr::Unary(Box::new(right), operator))
         } else {
-            self.call()
+            self.exponent()
         }
+    }
+
+    fn exponent(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.call()?;
+        while *self.peek() == Token::Pow {
+            let operator = self.advance();
+            let right = self.call()?;
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        }
+        Ok(expr)
     }
 
     fn call(&mut self) -> Result<Expr, ParseErr> {
@@ -613,6 +616,7 @@ impl<'a> Parser<'a> {
                     ELEM => Func::Elem,
                     MIN => Func::Min,
                     MAX => Func::Max,
+                    QUADR => Func::Quadr,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -693,6 +697,7 @@ impl Display for Func {
                 Func::Elem => ELEM,
                 Func::Min => MIN,
                 Func::Max => MAX,
+                Func::Quadr => QUADR,
             }
         )
     }
@@ -821,6 +826,16 @@ mod tests {
     }
 
     #[test]
+    fn test_no_params() {
+        let expected = Stmt::Assign("foo".to_string(), Expr::Fun(vec![], Box::new(Expr::Int(2))));
+
+        let mut tokenizer = Tokenizer::new("let foo = || 2".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        let stmt = Parser::new(tokenizer, current).parse().unwrap();
+        assert_eq!(stmt, expected);
+    }
+
+    #[test]
     fn test_assignment() {
         let expected = Stmt::Assign(
             "foo".to_string(),
@@ -849,7 +864,7 @@ mod tests {
             Box::new(Expr::Bool(false)),
         ));
 
-        let mut tokenizer = Tokenizer::new("true || false".chars().peekable()).peekable();
+        let mut tokenizer = Tokenizer::new("true or false".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }
@@ -903,5 +918,20 @@ mod tests {
 
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_exponent() {
+        check(
+            "-4 ** 0.5",
+            Expr::Unary(
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Int(4)),
+                    Token::Pow,
+                    Box::new(Expr::Float(0.5)),
+                )),
+                Token::Minus,
+            ),
+        );
     }
 }

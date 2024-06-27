@@ -12,6 +12,8 @@ const THEN: &str = "then";
 const ELSE: &str = "else";
 const NIL: &str = "nil";
 const NAN: &str = "NaN";
+const OR: &str = "or";
+const AND: &str = "and";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
@@ -95,8 +97,8 @@ impl std::fmt::Display for Token {
             Token::Gte => inner_write(">=", f),
             Token::Lt => inner_write("<", f),
             Token::Lte => inner_write("<=", f),
-            Token::Or => inner_write("||", f),
-            Token::And => inner_write("&&", f),
+            Token::Or => inner_write(" or ", f),
+            Token::And => inner_write(" and ", f),
             Token::If => inner_write(IF, f),
             Token::Then => inner_write(THEN, f),
             Token::Else => inner_write(ELSE, f),
@@ -165,21 +167,9 @@ impl<'a> Iterator for Tokenizer<'a> {
                 }
                 _ => Token::Not,
             },
-            '&' => match self.input.peek() {
-                Some('&') => {
-                    self.input.next();
-                    Token::And
-                }
-                _ => Token::BitAnd,
-            },
+            '&' => Token::BitAnd,
             '^' => Token::BitXor,
-            '|' => match self.input.peek() {
-                Some('|') => {
-                    self.input.next();
-                    Token::Or
-                }
-                _ => Token::Pipe,
-            },
+            '|' => Token::Pipe,
             ',' => Token::Comma,
             '/' => Token::Div,
             '+' => Token::Plus,
@@ -311,6 +301,8 @@ impl<'a> Iterator for Tokenizer<'a> {
                     ELSE => Token::Else,
                     NIL => Token::Nil,
                     NAN => Token::NaN,
+                    OR => Token::Or,
+                    AND => Token::And,
                     _ => Token::Ident(ident),
                 }
             }
