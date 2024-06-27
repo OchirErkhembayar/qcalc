@@ -166,7 +166,7 @@ tan(_rads_)        tanh(_rads_)  atan(_rads_)  atanh(_rads_)    cube(_arg_)
 log(_base_, _arg_) ln(_arg_)     cbrt(_arg_)   ceil(_arg_)      exp(_arg_)
 degs(_rads_)       rads(_degs_)  round(_arg_)  floor(_arg_)     exp2(_arg_)
 fract(_arg_)       recip(_arg_)  abs(_arg_)    factorial(_arg_) range(_arg_, _arg_)
-elem(_arg_)        min([_arg_])  max([_arg_])
+elem(_arg_)        min([_arg_])  max([_arg_])  quadr(_arg_, _arg_, _arg_)
 
 Examples: \"log10(100)\", \"cos(pi)\"
 
