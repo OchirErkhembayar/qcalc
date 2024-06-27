@@ -11,7 +11,7 @@ license = "MIT"
 homepage = "https://github.com/OchirErkhembayar/tc#readme"
 repository = "https://github.com/OchirErkhembayar/tc"
 readme = "README.md"
-categories = ["calculator", "math", "calculations"]
+categories = ["calcs", "maths", "tui", "arithmetic"]
 keywords = ["tui", "calculator", "math"]
 include = [
     "/src",
