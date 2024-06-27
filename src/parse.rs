@@ -39,6 +39,9 @@ const ODD: &str = "odd";
 const EVEN: &str = "even";
 const FACTORIAL: &str = "factorial";
 const RANGE: &str = "range";
+const ELEM: &str = "elem";
+const MIN: &str = "min";
+const MAX: &str = "max";
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -91,6 +94,9 @@ pub enum Func {
     Even,
     Fact,
     Range,
+    Elem,
+    Min,
+    Max,
 }
 
 impl Func {
@@ -132,6 +138,9 @@ impl Func {
             Func::Even => 1,
             Func::Fact => 1,
             Func::Range => 2,
+            Func::Elem => 2,
+            Func::Min => 1,
+            Func::Max => 1,
         }
     }
 }
@@ -151,6 +160,9 @@ pub enum Expr {
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     String(String),
     List(Vec<Expr>),
+    Tuple(Vec<Expr>),
+    Nil,
+    Nan,
 }
 
 impl Expr {
@@ -160,6 +172,7 @@ impl Expr {
             Self::If(cond, then, else_expr) => {
                 format!("if {} then {} else {}", cond, then, else_expr)
             }
+            Self::Nan => "NaN".to_string(),
             Self::Int(int) => int.to_string(),
             Self::String(string) => format!("\"{}\"", string.clone()),
             Self::Unary(expr, operator) => format!("{}{}", operator, expr.format()),
@@ -199,6 +212,15 @@ impl Expr {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Self::Tuple(elems) => format!(
+                "{{{}}}",
+                elems
+                    .iter()
+                    .map(|e| e.format())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Nil => "nil".to_string(),
         }
     }
 }
@@ -489,6 +511,16 @@ impl<'a> Parser<'a> {
                 self.advance();
                 res
             }
+            Token::Nil => {
+                let res = Ok(Expr::Nil);
+                self.advance();
+                res
+            }
+            Token::NaN => {
+                let res = Ok(Expr::Nan);
+                self.advance();
+                res
+            }
             Token::String(string) => {
                 let res = Ok(Expr::String(string.clone()));
                 self.advance();
@@ -522,6 +554,21 @@ impl<'a> Parser<'a> {
                 }
                 self.consume(Token::RBracket, "Missing closing bracket")?;
                 Ok(Expr::List(elems))
+            }
+            Token::LCurly => {
+                self.advance();
+                let mut elems = vec![];
+                if !self.check(&Token::RCurly) {
+                    loop {
+                        elems.push(self.expression()?);
+                        if !self.check(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
+                self.consume(Token::RCurly, "Missing closing bracket")?;
+                Ok(Expr::Tuple(elems))
             }
             Token::Ident(func) => {
                 let func = func.to_owned();
@@ -563,6 +610,9 @@ impl<'a> Parser<'a> {
                     ODD => Func::Odd,
                     FACTORIAL => Func::Fact,
                     RANGE => Func::Range,
+                    ELEM => Func::Elem,
+                    MIN => Func::Min,
+                    MAX => Func::Max,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -640,6 +690,9 @@ impl Display for Func {
                 Func::Even => EVEN,
                 Func::Fact => FACTORIAL,
                 Func::Range => RANGE,
+                Func::Elem => ELEM,
+                Func::Min => MIN,
+                Func::Max => MAX,
             }
         )
     }
@@ -709,14 +762,10 @@ mod tests {
     fn test_missing_closing_paren() {
         let mut tokenizer = Tokenizer::new("-(5".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
-        if let Err(err) = Parser::new(tokenizer, current).parse() {
-            assert_eq!(
-                err,
-                ParseErr::new(Token::RParen, "Missing closing parentheses")
-            );
-        } else {
-            panic!("Didn't return error");
-        }
+        assert_eq!(
+            Err(ParseErr::new(Token::RParen, "Missing closing parentheses")),
+            Parser::new(tokenizer, current).parse()
+        );
     }
 
     #[test]
@@ -828,6 +877,30 @@ mod tests {
         let expected = Stmt::Expr(Expr::Func(Func::Fact, vec![Expr::Int(5)]));
 
         let mut tokenizer = Tokenizer::new("factorial(5)".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_tuple() {
+        let expected = Stmt::Expr(Expr::Tuple(vec![Expr::Int(2), Expr::Int(3)]));
+
+        let mut tokenizer = Tokenizer::new("{2, 3}".chars().peekable()).peekable();
+
+        let current = tokenizer.next().unwrap();
+        assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
+    }
+
+    #[test]
+    fn test_nil() {
+        let expected = Stmt::Expr(Expr::Binary(
+            Box::new(Expr::Nil),
+            Token::Eq,
+            Box::new(Expr::Nil),
+        ));
+
+        let mut tokenizer = Tokenizer::new("nil == nil".chars().peekable()).peekable();
+
         let current = tokenizer.next().unwrap();
         assert_eq!(Parser::new(tokenizer, current).parse(), Ok(expected));
     }

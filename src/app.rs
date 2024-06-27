@@ -69,12 +69,9 @@ impl<'ta> App<'ta> {
         buf.lines().for_each(|line| {
             let mut tokenizer = Tokenizer::new(line.chars().peekable()).peekable();
             if let Some(token) = tokenizer.next() {
-                let res = Parser::new(tokenizer, token)
+                let _ = Parser::new(tokenizer, token)
                     .parse()
-                    .expect("Invalid syntax in RC file");
-                self.interpreter
-                    .interpret(res)
-                    .expect("Runtime error in RC file. Either edit it or delete it and restart");
+                    .map(|res| self.interpreter.interpret(res));
             }
         });
     }
@@ -112,10 +109,6 @@ impl<'ta> App<'ta> {
 
     pub fn reset_vars(&mut self) {
         self.interpreter.reset_vars();
-    }
-
-    pub fn reset_exprs(&mut self) {
-        self.expr_history.clear();
     }
 
     pub fn input(&mut self, input: Input) {
@@ -237,12 +230,7 @@ mod tests {
     }
 
     fn assert_output(app: &App, expected: Value) {
-        // Yuck.
-        if let Some(output) = &app.output {
-            assert_eq!(output, &expected);
-        } else {
-            panic!("Error: {:?}", app.err);
-        }
+        assert_eq!(*&app.output, Some(expected));
     }
 
     #[test]
@@ -410,5 +398,30 @@ mod tests {
             &app,
             Value::List(vec![Value::Int(0), Value::Int(1), Value::Int(2)]),
         );
+    }
+
+    #[test]
+    fn test_elem() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "elem({1, 2}, 1)");
+        assert_output(&app, Value::Int(2));
+
+        input_and_evaluate(&mut app, "elem([1, 2], 0)");
+        assert_output(&app, Value::Int(1));
+    }
+
+    #[test]
+    fn test_min_max() {
+        let mut app = new_app();
+
+        input_and_evaluate(&mut app, "min([1, 2, 3])");
+        assert_output(&app, Value::Int(1));
+
+        input_and_evaluate(&mut app, "max([1, 2, 3])");
+        assert_output(&app, Value::Int(3));
+
+        input_and_evaluate(&mut app, "max([])");
+        assert_output(&app, Value::Nil);
     }
 }

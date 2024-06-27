@@ -10,6 +10,8 @@ const FALSE: &str = "false";
 const IF: &str = "if";
 const THEN: &str = "then";
 const ELSE: &str = "else";
+const NIL: &str = "nil";
+const NAN: &str = "NaN";
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
@@ -30,8 +32,10 @@ pub enum Token {
     Not,
     RParen,
     LParen,
-    LBracket,
     RBracket,
+    LBracket,
+    RCurly,
+    LCurly,
     BitAnd,
     BitXor,
     Shr,
@@ -50,6 +54,8 @@ pub enum Token {
     Then,
     Else,
     String(String),
+    Nil,
+    NaN,
 }
 
 impl std::fmt::Display for Token {
@@ -75,8 +81,10 @@ impl std::fmt::Display for Token {
             Token::BitXor => inner_write('^', f),
             Token::LParen => inner_write('(', f),
             Token::RParen => inner_write(')', f),
-            Token::LBracket => inner_write('[', f),
             Token::RBracket => inner_write(']', f),
+            Token::LBracket => inner_write('[', f),
+            Token::RCurly => inner_write('}', f),
+            Token::LCurly => inner_write('{', f),
             Token::Shr => inner_write(">>", f),
             Token::Shl => inner_write("<<", f),
             Token::True => inner_write(TRUE, f),
@@ -92,6 +100,8 @@ impl std::fmt::Display for Token {
             Token::If => inner_write(IF, f),
             Token::Then => inner_write(THEN, f),
             Token::Else => inner_write(ELSE, f),
+            Token::Nil => inner_write(NIL, f),
+            Token::NaN => inner_write(NAN, f),
         }
     }
 }
@@ -187,6 +197,8 @@ impl<'a> Iterator for Tokenizer<'a> {
             ')' => Token::RParen,
             '[' => Token::LBracket,
             ']' => Token::RBracket,
+            '{' => Token::LCurly,
+            '}' => Token::RCurly,
             '0'..='9' => {
                 // Check if it's hex
                 if next == '0'
@@ -259,6 +271,27 @@ impl<'a> Iterator for Tokenizer<'a> {
                     return None;
                 }
             }
+            '\'' => {
+                let mut string = String::new();
+                while self.input.peek().is_some_and(|c| *c != '\'') {
+                    let next = self.input.next().unwrap();
+                    if next == '\\' {
+                        if let Some(char) = self.input.next() {
+                            string.push('\\');
+                            string.push(char);
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        string.push(next);
+                    }
+                }
+                if let Some('\'') = self.input.next() {
+                    Token::String(string)
+                } else {
+                    return None;
+                }
+            }
             'A'..='Z' | 'a'..='z' => {
                 let mut ident = next.to_string();
                 while self
@@ -276,6 +309,8 @@ impl<'a> Iterator for Tokenizer<'a> {
                     IF => Token::If,
                     THEN => Token::Then,
                     ELSE => Token::Else,
+                    NIL => Token::Nil,
+                    NAN => Token::NaN,
                     _ => Token::Ident(ident),
                 }
             }
@@ -385,5 +420,12 @@ mod tests {
                 Token::String("lol".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn test_nan_and_nil() {
+        let str = "NaN == nil".chars().peekable();
+        let tokens = Tokenizer::new(str).collect::<Vec<_>>();
+        assert_eq!(tokens, vec![Token::NaN, Token::Eq, Token::Nil,]);
     }
 }

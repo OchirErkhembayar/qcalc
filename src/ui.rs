@@ -160,18 +160,19 @@ Built in Functions
 _arg_ should be replaced by an expression eg. ln(2)
 _rads_ indicates that the argument should be in radians eg. cos(p)
 
-cos(_rads_)        cosh(_rads_)  acos(_rads_)  acosh(_rads_)  sq(_arg_)    
-sin(_rads_)        sinh(_rads_)  asin(_rads_)  asinh(_rads_)  sqrt(_arg_)
-tan(_rads_)        tanh(_rads_)  atan(_rads_)  atanh(_rads_)  cube(_arg_)
-log(_base_, _arg_) ln(_arg_)     cbrt(_arg_)   ceil(_arg_)    exp(_arg_)
-degs(_rads_)       rads(_degs_)  round(_arg_)  floor(_arg_)   exp2(_arg_)
-fract(_arg_)       recip(_arg_)  abs(_arg_)    factorial(_arg) range(_arg_, _arg_)
+cos(_rads_)        cosh(_rads_)  acos(_rads_)  acosh(_rads_)    sq(_arg_)    
+sin(_rads_)        sinh(_rads_)  asin(_rads_)  asinh(_rads_)    sqrt(_arg_)
+tan(_rads_)        tanh(_rads_)  atan(_rads_)  atanh(_rads_)    cube(_arg_)
+log(_base_, _arg_) ln(_arg_)     cbrt(_arg_)   ceil(_arg_)      exp(_arg_)
+degs(_rads_)       rads(_degs_)  round(_arg_)  floor(_arg_)     exp2(_arg_)
+fract(_arg_)       recip(_arg_)  abs(_arg_)    factorial(_arg_) range(_arg_, _arg_)
+elem(_arg_)        min([_arg_])  max([_arg_])
 
 Examples: \"log10(100)\", \"cos(pi)\"
 
 Shortcuts
 ---------
-(Ctrl e/v) Reset exprs/vars
+(Ctrl v) Reset vars
 (Ctrl x) Delete selected expression
 "
             }
@@ -212,19 +213,25 @@ Types
     - floats 12.0
     - booleans true
     - strings \"Hello, World!\"
-    - arrays [1, true, \"Hi\", 2.0]
+    - lists [1, true, \"Hi\", 2.0]
+    - tuples {false, 1, 2}
+    - NaN, nil
 Control flow
     if [BOOL_EXPR] then [THEN_EXPR] else [ELSE_EXPR]
     eg. if true then \"foo\" else \"bar\"
-Arrays
-    map(_array_, _callback_)
-        eg. map([1, 2, 3], |x| x ** 2)
-    filter(_array_, _callback_)
+Lists
+    map(_list_, _callback_)
+        eg. map([1, 2, 3], |x| x ** 2) == [1, 4, 9]
+    filter(_list_, _callback_)
         eg. filter([1, 2, 3], |x| odd(x))
-    sum(_array_)
-        eg. sum([1, 2, 3, 4, 5])
-    fold(_array_, _callback_, _initial_value_)
-        eg. fold([1, 2, 3], |acc, curr| acc + curr, 1)
+    sum(_list_)
+        eg. sum([1, 2, 3, 4, 5]) == 15
+    fold(_list_, _callback_, _initial_value_)
+        eg. fold([1, 2, 3], |acc, curr| acc + curr, 1) == 6
+    min(_list_)
+        eg. min([1, 2, 3]) == 1
+    max(_list_)
+        eg. max([1, 2, 3]) == 3
 "
             }
         };

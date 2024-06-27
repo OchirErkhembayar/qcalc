@@ -41,7 +41,10 @@ pub enum Value {
     String(String),
     Bool(bool),
     List(Vec<Value>),
+    Tuple(Vec<Value>),
     Unit,
+    Nil,
+    NaN,
 }
 
 impl Value {
@@ -49,7 +52,7 @@ impl Value {
         match self {
             Self::Float(float) => format!("let {} = {}", name, float),
             Self::Int(int) => format!("let {} = {}", name, int),
-            Self::String(string) => string.to_owned(),
+            Self::String(string) => format!("let {} = \"{}\"", name, string),
             Self::Unit => "()".to_string(),
             Self::Bool(bool) => if *bool { "true" } else { "false" }.to_string(),
             Self::Fn(func) => format!(
@@ -59,13 +62,32 @@ impl Value {
                 func.body.format()
             ),
             Self::List(elems) => format!(
-                "[{}]",
+                "let {} = [{}]",
+                name,
                 elems
                     .iter()
-                    .map(|e| e.to_string())
+                    // This is quite dangerous and error-prone. Considering changing how this works
+                    .map(|e| match e {
+                        Value::String(string) => format!("\"{}\"", string),
+                        v => v.to_string(),
+                    })
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Self::Tuple(elems) => format!(
+                "let {} = {{{}}}",
+                name,
+                elems
+                    .iter()
+                    .map(|e| match e {
+                        Value::String(string) => format!("\"{}\"", string),
+                        v => v.to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Nil => "nil".to_string(),
+            Self::NaN => "NaN".to_string(),
         }
     }
 
@@ -81,14 +103,19 @@ impl Value {
         })
     }
 
-    fn pow(&self, rhs: Self) -> Self {
-        match (self, rhs) {
+    fn pow(&self, rhs: Self) -> Result<Self, InterpretError> {
+        let res = match (self, rhs) {
             (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs.pow(rhs as u32)),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs.powf(rhs)),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float((*lhs as f64).powf(rhs)),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs.powi(rhs as i32)),
-            _ => panic!("Cannot add non numeric types"),
-        }
+            _ => {
+                return Err(InterpretError::RuntimeError(
+                    "Cannot pow non numeric types".to_string(),
+                ))
+            }
+        };
+        Ok(res)
     }
 
     fn truthy(&self) -> bool {
@@ -98,8 +125,11 @@ impl Value {
             Self::Bool(bool) => *bool,
             Self::String(string) => !string.is_empty(),
             Self::Unit => false,
+            Self::Nil => false,
             Self::Fn(_) => true,
             Self::List(elems) => !elems.is_empty(),
+            Self::Tuple(elems) => !elems.is_empty(),
+            Self::NaN => false,
         }
     }
 
@@ -108,6 +138,8 @@ impl Value {
             Ok(float)
         } else if let Value::Int(int) = self {
             Ok(*int as f64)
+        } else if let Value::NaN = self {
+            Ok(f64::NAN)
         } else {
             Err(InterpretError::InvalidArgument(format!(
                 "Expected float, got: {}",
@@ -165,6 +197,7 @@ pub enum InterpretError {
     UnInvokedFunction(String),
     WrongArity(Value, usize, usize),
     InvalidArgument(String),
+    RuntimeError(String),
 }
 
 impl Function {
@@ -235,6 +268,15 @@ impl Interpreter {
                 }
                 Ok(Value::List(elements))
             }
+            Expr::Tuple(elems) => {
+                let mut elements = vec![];
+                for elem in elems.iter() {
+                    elements.push(self.interpret_expr(elem)?);
+                }
+                Ok(Value::Tuple(elements))
+            }
+            Expr::Nan => Ok(Value::NaN),
+            Expr::Nil => Ok(Value::Nil),
             Expr::Int(int) => Ok(Value::Int(*int)),
             Expr::String(string) => Ok(Value::String(string.clone())),
             Expr::Bool(bool) => Ok(Value::Bool(*bool)),
@@ -259,7 +301,7 @@ impl Interpreter {
                     Token::BitXor => (left ^ right)?,
                     Token::Shl => (left << right)?,
                     Token::Shr => (left >> right)?,
-                    Token::Pow => left.pow(right),
+                    Token::Pow => left.pow(right)?,
                     Token::And => Value::Bool(left.truthy() && right.truthy()),
                     Token::Or => Value::Bool(left.truthy() || right.truthy()),
                     Token::Eq => Value::Bool(left == right),
@@ -280,7 +322,7 @@ impl Interpreter {
             Expr::Grouping(expr) => self.interpret_expr(expr),
             Expr::Unary(expr, operator) => match operator {
                 Token::Not => self.interpret_expr(expr)?.not(),
-                Token::Minus => Ok(self.interpret_expr(expr)?.neg()),
+                Token::Minus => Ok(self.interpret_expr(expr)?.neg()?),
                 _ => unreachable!(),
             },
             Expr::Call(name, args) => {
@@ -415,12 +457,45 @@ impl Interpreter {
                                 "Invalid range".to_string(),
                             ));
                         } else {
-                            let vec = (start..end)
-                                .into_iter()
-                                .map(|i| Value::Int(i))
-                                .collect::<Vec<_>>();
+                            let vec = (start..end).map(Value::Int).collect::<Vec<_>>();
                             return Ok(Value::List(vec));
                         }
+                    }
+                    Func::Elem => {
+                        let elements = match &arguments[0] {
+                            Value::List(elems) => elems.to_owned(),
+                            Value::Tuple(elems) => elems.to_owned(),
+                            _ => {
+                                return Err(InterpretError::InvalidArgument(
+                                    "Cannot call elem on this data type".to_string(),
+                                ))
+                            }
+                        };
+                        let index = arguments[1].to_int()?;
+                        if index < 0 {
+                            return Err(InterpretError::InvalidArgument(
+                                "Negative index".to_string(),
+                            ));
+                        }
+
+                        let element =
+                            elements
+                                .get(index as usize)
+                                .ok_or(InterpretError::RuntimeError(format!(
+                                    "Index {} out of range 0..{}",
+                                    index,
+                                    elements.len() - 1
+                                )))?;
+
+                        return Ok(element.to_owned());
+                    }
+                    Func::Min => {
+                        let list = arguments[0].to_list()?;
+                        return Ok(list.into_iter().min().unwrap_or(Value::Nil));
+                    }
+                    Func::Max => {
+                        let list = arguments[0].to_list()?;
+                        return Ok(list.into_iter().max().unwrap_or(Value::Nil));
                     }
                 };
                 Ok(Value::Float(val))
@@ -428,10 +503,14 @@ impl Interpreter {
         }
         .map(|n| {
             if let Value::Float(n) = n {
-                if (n.round() - n).abs() < 1e-10 {
-                    Value::Float(n.round())
+                if n.is_normal() {
+                    if (n.round() - n).abs() < 1e-10 {
+                        Value::Float(n.round())
+                    } else {
+                        Value::Float(n)
+                    }
                 } else {
-                    Value::Float(n)
+                    Value::NaN
                 }
             } else {
                 n
@@ -490,6 +569,7 @@ impl Display for InterpretError {
                 Self::Uncallable(f) => format!("Unknown function {}", f),
                 Self::UnInvokedFunction(f) => format!("Uninvoked function {}", f),
                 Self::InvalidArgument(m) => m.clone(),
+                Self::RuntimeError(m) => m.clone(),
                 Self::WrongArity(name, actual, expected) => format!(
                     "Function {} takes {} arguments but {} were provided",
                     name, expected, actual
@@ -507,10 +587,23 @@ impl Display for Value {
             Self::Fn(func) => inner_write(func, f),
             Self::String(string) => inner_write(string, f),
             Self::Unit => inner_write("()", f),
+            Self::Nil => inner_write("nil", f),
+            Self::NaN => inner_write("NaN", f),
             Self::Bool(bool) => inner_write(bool, f),
             Self::List(elems) => inner_write(
                 format!(
                     "[{}]",
+                    elems
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                f,
+            ),
+            Self::Tuple(elems) => inner_write(
+                format!(
+                    "{{{}}}",
                     elems
                         .iter()
                         .map(|e| e.to_string())
@@ -544,6 +637,7 @@ impl Add for Value {
                 lhs.push_str(&rhs);
                 Value::String(lhs)
             }
+            (Value::NaN, _) | (_, Value::NaN) => Value::NaN,
             _ => {
                 return Err(InterpretError::InvalidArgument(
                     "Cannot add these types together".to_string(),
@@ -564,6 +658,7 @@ impl Sub for Value {
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs - rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 - rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs - rhs as f64),
+            (Value::NaN, _) | (_, Value::NaN) => Value::NaN,
             _ => {
                 return Err(InterpretError::InvalidArgument(
                     "Cannot sub non numeric types".to_string(),
@@ -584,6 +679,7 @@ impl Mul for Value {
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs * rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 * rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs * rhs as f64),
+            (Value::NaN, _) | (_, Value::NaN) => Value::NaN,
             _ => {
                 return Err(InterpretError::InvalidArgument(
                     "Cannot mul non numeric types".to_string(),
@@ -604,6 +700,7 @@ impl Div for Value {
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs / rhs),
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 / rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs / rhs as f64),
+            (Value::NaN, _) | (_, Value::NaN) => Value::NaN,
             _ => {
                 return Err(InterpretError::InvalidArgument(
                     "Cannot divide non numeric types".to_string(),
@@ -616,13 +713,15 @@ impl Div for Value {
 }
 
 impl Neg for Value {
-    type Output = Value;
+    type Output = Result<Value, InterpretError>;
 
     fn neg(self) -> Self::Output {
         match &self {
-            Value::Int(int) => Value::Int(-*int),
-            Value::Float(float) => Value::Float(-*float),
-            _ => panic!("Cannot negate non numeric types"),
+            Value::Int(int) => Ok(Value::Int(-*int)),
+            Value::Float(float) => Ok(Value::Float(-*float)),
+            _ => Err(InterpretError::RuntimeError(
+                "Cannot negate non numeric types".to_string(),
+            )),
         }
     }
 }
@@ -733,7 +832,7 @@ impl PartialOrd for Value {
             (Value::Float(lhs), Value::Float(rhs)) => lhs > rhs,
             (Value::Int(lhs), Value::Float(rhs)) => *lhs as f64 > *rhs,
             (Value::Float(lhs), Value::Int(rhs)) => *lhs > *rhs as f64,
-            _ => panic!("Cannot calculate rem of non numeric types"),
+            _ => false,
         }
     }
 
@@ -747,6 +846,14 @@ impl PartialOrd for Value {
             _ => return None,
         };
         Some(res)
+    }
+}
+
+impl Eq for Value {}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -842,6 +949,32 @@ mod tests {
                 ),
                 ("bar".to_string(), Value::Int(5)), // The function uses the closure value
             ]),
+        );
+    }
+
+    #[test]
+    fn nan_for_nan() {
+        check(Expr::Func(Func::Sqrt, vec![Expr::Int(-1)]), Ok(Value::NaN));
+    }
+
+    #[test]
+    fn non_numeric_operations() {
+        check(
+            Expr::Binary(
+                Box::new(Expr::String("foo".to_string())),
+                Token::Pow,
+                Box::new(Expr::String("bar".to_string())),
+            ),
+            Err(InterpretError::RuntimeError(
+                "Cannot pow non numeric types".to_string(),
+            )),
+        );
+
+        check(
+            Expr::Unary(Box::new(Expr::String("foo".to_string())), Token::Minus),
+            Err(InterpretError::RuntimeError(
+                "Cannot negate non numeric types".to_string(),
+            )),
         );
     }
 }

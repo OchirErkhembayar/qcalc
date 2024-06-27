@@ -69,9 +69,6 @@ fn update(app: &mut App, key_event: KeyEvent) {
             {
                 app.input_select(false);
             }
-            KeyCode::Char('e') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                app.reset_exprs();
-            }
             KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.reset_vars();
             }
