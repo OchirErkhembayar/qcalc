@@ -410,9 +410,9 @@ impl Interpreter {
                         let a = arguments[0].to_float()?;
                         let b = arguments[1].to_float()?;
                         let c = arguments[2].to_float()?;
-                        let n = (b.powi(2) - 4.0 * a * c).powf(0.5) / (2.0 * a);
-                        let pos = -b + n;
-                        let neg = -b - n;
+                        let n = (b.powi(2) - 4.0 * a * c).powf(0.5);
+                        let pos = (-b + n) / (2.0 * a);
+                        let neg = (-b - n) / (2.0 * a);
                         return Ok(Value::List(vec![Value::Float(pos), Value::Float(neg)]));
                     }
                     Func::Map => {

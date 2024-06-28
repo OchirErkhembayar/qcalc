@@ -263,19 +263,26 @@ mod tests {
     fn test_built_in_fns() {
         let mut app = new_app();
         let input_and_ans = [
-            ("sq(2)", 4.0),
-            ("sqrt(16)", 4.0),
-            ("cube(2)", 8.0),
-            ("cbrt(8)", 2.0),
-            ("round(2.49999)", 2.0),
-            ("cos(rads(180))", -1.0),
-            ("floor(2.99)", 2.0),
-            ("recip(2)", 0.5),
+            ("sq(2)", Value::Float(4.0)),
+            ("sqrt(16)", Value::Float(4.0)),
+            ("cube(2)", Value::Float(8.0)),
+            ("cbrt(8)", Value::Float(2.0)),
+            ("round(2.49999)", Value::Float(2.0)),
+            ("cos(rads(180))", Value::Float(-1.0)),
+            ("floor(2.99)", Value::Float(2.0)),
+            ("recip(2)", Value::Float(0.5)),
+            ("min([1,2,3])", Value::Float(1.0)),
+            ("max([1,2,3])", Value::Float(3.0)),
+            ("max([])", Value::Nil),
+            (
+                "quadr(1, 1, -2)",
+                Value::List(vec![Value::Float(1.0), Value::Float(-2.0)]),
+            ),
         ];
 
         input_and_ans.into_iter().for_each(|(input, exp)| {
             input_and_evaluate(&mut app, input);
-            assert_output(&app, Value::Float(exp));
+            assert_output(&app, exp);
         });
     }
 
@@ -427,19 +434,5 @@ mod tests {
 
         input_and_evaluate(&mut app, "elem([1, 2], 0)");
         assert_output(&app, Value::Int(1));
-    }
-
-    #[test]
-    fn test_min_max() {
-        let mut app = new_app();
-
-        input_and_evaluate(&mut app, "min([1, 2, 3])");
-        assert_output(&app, Value::Int(1));
-
-        input_and_evaluate(&mut app, "max([1, 2, 3])");
-        assert_output(&app, Value::Int(3));
-
-        input_and_evaluate(&mut app, "max([])");
-        assert_output(&app, Value::Nil);
     }
 }
