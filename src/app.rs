@@ -411,7 +411,7 @@ mod tests {
     fn test_range() {
         let mut app = new_app();
 
-        input_and_evaluate(&mut app, "range(0, 3)");
+        input_and_evaluate(&mut app, "range(0, 2)");
         assert_output(
             &app,
             Value::List(vec![Value::Int(0), Value::Int(1), Value::Int(2)]),

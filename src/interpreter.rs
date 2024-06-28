@@ -33,7 +33,7 @@ impl Stmt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Fn(Function),
     Float(f64),
@@ -477,7 +477,7 @@ impl Interpreter {
                                 "Invalid range".to_string(),
                             ));
                         } else {
-                            let vec = (start..end).map(Value::Int).collect::<Vec<_>>();
+                            let vec = (start..=end).map(Value::Int).collect::<Vec<_>>();
                             return Ok(Value::List(vec));
                         }
                     }
@@ -494,7 +494,7 @@ impl Interpreter {
                         let index = arguments[1].to_int()?;
                         if index < 0 {
                             return Err(InterpretError::InvalidArgument(
-                                "Negative index".to_string(),
+                                "Indexes start at 0".to_string(),
                             ));
                         }
 
@@ -523,8 +523,8 @@ impl Interpreter {
         }
         .map(|n| {
             if let Value::Float(n) = n {
-                if n.is_normal() {
-                    if (n.round() - n).abs() < 1e-10 {
+                if !n.is_nan() && !n.is_infinite() {
+                    if n.is_subnormal() {
                         Value::Float(n.round())
                     } else {
                         Value::Float(n)
@@ -869,6 +869,35 @@ impl PartialOrd for Value {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Int(lhs), Value::Int(rhs)) => lhs == rhs,
+            (Value::Float(lhs), Value::Float(rhs)) => lhs == rhs,
+            (Value::Int(lhs), Value::Float(rhs)) => *lhs as f64 == *rhs,
+            (Value::Float(lhs), Value::Int(rhs)) => *lhs == *rhs as f64,
+            (Value::String(lhs), Value::String(rhs)) => lhs == rhs,
+            (Value::Fn(fl), Value::Fn(fr)) => fl == fr,
+            (Value::Fn(_), _) => false,
+            (Value::Float(_), _) => false,
+            (Value::Int(_), _) => false,
+            (Value::String(_), _) => false,
+            (Value::Bool(bl), Value::Bool(br)) => bl == br,
+            (Value::Bool(_), _) => false,
+            (Value::List(ll), Value::List(lr)) => ll == lr,
+            (Value::List(_), _) => false,
+            (Value::Tuple(tl), Value::Tuple(tr)) => tl == tr,
+            (Value::Tuple(_), _) => false,
+            (Value::Unit, Value::Unit) => true,
+            (Value::Unit, _) => false,
+            (Value::Nil, Value::Nil) => true,
+            (Value::Nil, _) => false,
+            (Value::NaN, Value::NaN) => true,
+            (Value::NaN, _) => false,
+        }
+    }
+}
+
 impl Eq for Value {}
 
 impl Ord for Value {
@@ -996,5 +1025,25 @@ mod tests {
                 "Cannot negate non numeric types".to_string(),
             )),
         );
+    }
+
+    #[test]
+    fn partial_cmp_values() {
+        assert!(Value::Float(2.0) == Value::Int(2));
+        let var = "foo".to_string();
+        let fn_1 = Value::Fn(Function::new(
+            vec![var.clone()],
+            Expr::Var(var.clone()),
+            HashMap::new(),
+        ));
+        let fn_2 = Value::Fn(Function::new(
+            vec![var.clone()],
+            Expr::Var(var.clone()),
+            HashMap::new(),
+        ));
+        assert!(fn_1 == fn_2);
+
+        assert!(Value::Float(0.0) == Value::Int(0));
+        assert!(Value::Int(0) == Value::Float(0.0));
     }
 }
