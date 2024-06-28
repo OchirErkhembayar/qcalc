@@ -58,6 +58,7 @@ pub enum Token {
     String(String),
     Nil,
     NaN,
+    UnderScore,
 }
 
 impl std::fmt::Display for Token {
@@ -71,6 +72,7 @@ impl std::fmt::Display for Token {
             Token::Ident(ident) => inner_write(ident, f),
             Token::Let => inner_write(LET, f),
             Token::Assign => inner_write('=', f),
+            Token::UnderScore => inner_write('_', f),
             Token::Mod => inner_write('%', f),
             Token::Mult => inner_write('*', f),
             Token::Div => inner_write('/', f),
@@ -167,6 +169,12 @@ impl<'a> Iterator for Tokenizer<'a> {
                 }
                 _ => Token::Not,
             },
+            '_' => {
+                while self.input.peek().is_some_and(|c| c.is_alphanumeric()) {
+                    self.next();
+                }
+                Token::UnderScore
+            }
             '&' => Token::BitAnd,
             '^' => Token::BitXor,
             '|' => Token::Pipe,
@@ -383,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha_undscore_idents() {
+    fn alpha_underscore_idents() {
         let str = "foo_bar1337";
 
         let mut tokenizer = Tokenizer::new(str.chars().peekable());
@@ -391,6 +399,14 @@ mod tests {
             tokenizer.next(),
             Some(Token::Ident("foo_bar1337".to_string()))
         );
+    }
+
+    #[test]
+    fn test_underscore() {
+        let str = "_foobar";
+
+        let mut tokenizer = Tokenizer::new(str.chars().peekable());
+        assert_eq!(tokenizer.next(), Some(Token::UnderScore),);
     }
 
     #[test]

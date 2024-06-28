@@ -212,9 +212,20 @@ impl Function {
 
     fn call(&self, args: Vec<Value>) -> Result<Value, InterpretError> {
         let mut interpreter = Interpreter::with_env(self.closure.clone());
-        args.into_iter()
-            .enumerate()
-            .for_each(|(i, arg)| interpreter.define(self.parameters[i].clone(), arg));
+        let len = args.len();
+        for (i, arg) in args.into_iter().enumerate() {
+            let param = self
+                .parameters
+                .get(i)
+                .ok_or(InterpretError::InvalidArgument(format!(
+                    "Expected {} arguments",
+                    len,
+                )))?;
+            if param == "_" {
+                continue;
+            }
+            interpreter.define(param.clone(), arg)
+        }
         interpreter.interpret_expr(&self.body)
     }
 }

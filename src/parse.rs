@@ -3,6 +3,13 @@ use core::iter::Peekable;
 use std::{error::Error, fmt::Display};
 
 use crate::{interpreter::Stmt, token::Token};
+
+pub const FNS: [&str; 40] = [
+    COS, COSH, ACOS, ACOSH, ABS, SIN, SINH, ASIN, ASINH, TAN, TANH, ATAN, ATANH, LOG, LN, DEGS,
+    RADS, SQRT, SQ, CBRT, CUBE, ROUND, CEIL, FLOOR, EXP, EXP2, FRACT, RECIP, MAP, SUM, FOLD,
+    FILTER, ODD, EVEN, FACTORIAL, RANGE, ELEM, MIN, MAX, QUADR,
+];
+
 const COS: &str = "cos";
 const COSH: &str = "cosh";
 const ACOS: &str = "acos";
@@ -338,17 +345,19 @@ impl<'a> Parser<'a> {
         if *self.peek() != Token::Pipe && !self.at_end() {
             loop {
                 let next = self.advance();
-                if let Token::Ident(arg) = next {
-                    if parameters.contains(&arg) {
-                        return Err(ParseErr::new(
-                            Token::Ident(arg),
-                            "Function parameters must be unique",
-                        ));
+                match next {
+                    Token::Ident(arg) => {
+                        if parameters.contains(&arg) {
+                            return Err(ParseErr::new(
+                                Token::Ident(arg),
+                                "Function parameters must be unique",
+                            ));
+                        }
+                        parameters.push(arg);
                     }
-                    parameters.push(arg);
-                } else {
-                    return Err(ParseErr::new(next, "Expected argument"));
-                }
+                    Token::UnderScore => parameters.push("_".to_string()),
+                    _ => return Err(ParseErr::new(next, "Expected argument")),
+                };
                 if *self.peek() != Token::Comma {
                     break;
                 }
@@ -376,7 +385,7 @@ impl<'a> Parser<'a> {
 
     fn or(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.and()?;
-        while *self.peek() == Token::Or {
+        while *self.peek() == Token::Or && !self.at_end() {
             self.advance();
             let rhs = Box::new(self.and()?);
             expr = Expr::Binary(Box::new(expr), Token::Or, rhs);
@@ -386,7 +395,7 @@ impl<'a> Parser<'a> {
 
     fn and(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.bit_binary()?;
-        while *self.peek() == Token::And {
+        while *self.peek() == Token::And && !self.at_end() {
             self.advance();
             let rhs = Box::new(self.bit_binary()?);
             expr = Expr::Binary(Box::new(expr), Token::And, rhs);
@@ -396,7 +405,8 @@ impl<'a> Parser<'a> {
 
     fn bit_binary(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.equality()?;
-        while matches!(*self.peek(), Token::Pipe | Token::BitXor | Token::BitAnd) {
+        while matches!(*self.peek(), Token::Pipe | Token::BitXor | Token::BitAnd) && !self.at_end()
+        {
             let operator = self.advance();
             let right = self.equality()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right))
@@ -406,7 +416,7 @@ impl<'a> Parser<'a> {
 
     fn equality(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.comparison()?;
-        while matches!(*self.peek(), Token::Eq | Token::Ne) {
+        while matches!(*self.peek(), Token::Eq | Token::Ne) && !self.at_end() {
             let operator = self.advance();
             let right = Box::new(self.comparison()?);
             expr = Expr::Binary(Box::new(expr), operator, right);
@@ -419,7 +429,8 @@ impl<'a> Parser<'a> {
         while matches!(
             *self.peek(),
             Token::Gte | Token::Gt | Token::Lte | Token::Lt
-        ) {
+        ) && !self.at_end()
+        {
             let operator = self.advance();
             let right = Box::new(self.bit_shift()?);
             expr = Expr::Binary(Box::new(expr), operator, right);
@@ -429,7 +440,7 @@ impl<'a> Parser<'a> {
 
     fn bit_shift(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.term()?;
-        while matches!(*self.peek(), Token::Shr | Token::Shl) {
+        while matches!(*self.peek(), Token::Shr | Token::Shl) && !self.at_end() {
             let operator = self.advance();
             let right = self.term()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -439,7 +450,7 @@ impl<'a> Parser<'a> {
 
     fn term(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.factor()?;
-        while *self.peek() == Token::Plus || *self.peek() == Token::Minus {
+        while *self.peek() == Token::Plus || *self.peek() == Token::Minus && !self.at_end() {
             let operator = self.advance();
             let right = self.factor()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -449,10 +460,7 @@ impl<'a> Parser<'a> {
 
     fn factor(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.unary()?;
-        while *self.peek() == Token::Div
-            || *self.peek() == Token::Mult
-            || *self.peek() == Token::Mod
-        {
+        while matches!(*self.peek(), Token::Div | Token::Mult | Token::Mod) && !self.at_end() {
             let operator = self.advance();
             let right = self.unary()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -472,7 +480,7 @@ impl<'a> Parser<'a> {
 
     fn exponent(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.call()?;
-        while *self.peek() == Token::Pow {
+        while *self.peek() == Token::Pow && !self.at_end() {
             let operator = self.advance();
             let right = self.call()?;
             expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
@@ -483,7 +491,7 @@ impl<'a> Parser<'a> {
     fn call(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.primary()?;
 
-        while *self.peek() == Token::LParen {
+        while *self.peek() == Token::LParen && !self.at_end() {
             self.advance();
             let mut args = vec![];
             if !self.check(&Token::RParen) {
@@ -705,6 +713,8 @@ impl Display for Func {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     fn check(str: &str, expected: Expr) {
@@ -788,6 +798,23 @@ mod tests {
         );
 
         let mut tokenizer = Tokenizer::new("let foo = |x, y| x + y".chars().peekable()).peekable();
+        let current = tokenizer.next().unwrap();
+        let stmt = Parser::new(tokenizer, current).parse().unwrap();
+        assert_eq!(stmt, expected);
+    }
+
+    #[test]
+    fn test_function_underscore_params() {
+        let expected = Stmt::Assign(
+            "foo".to_string(),
+            Expr::Fun(
+                vec!["_".to_string(), "_".to_string()],
+                Box::new(Expr::Float(200.2)),
+            ),
+        );
+
+        let mut tokenizer =
+            Tokenizer::new("let foo = |_, _foobar| 200.2".chars().peekable()).peekable();
         let current = tokenizer.next().unwrap();
         let stmt = Parser::new(tokenizer, current).parse().unwrap();
         assert_eq!(stmt, expected);

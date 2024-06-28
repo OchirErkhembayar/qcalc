@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "qcalc"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "crossterm",
  "dirs-next",

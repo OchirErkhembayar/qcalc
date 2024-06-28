@@ -12,7 +12,7 @@ use tui_textarea::{Input, TextArea};
 
 use crate::{
     interpreter::{Interpreter, Stmt, Value},
-    parse::Parser,
+    parse::{self, Parser},
     token::Tokenizer,
 };
 
@@ -181,6 +181,24 @@ impl<'ta> App<'ta> {
             if !self.expr_history.is_empty() && self.expr_history.len() <= self.expr_selector {
                 self.expr_selector -= 1;
             }
+        }
+    }
+
+    pub fn auto_complete(&mut self) {
+        let line = &self.input.lines()[0];
+        let line_len = line.len();
+        if let Some(key) = self
+            .interpreter
+            .env()
+            .keys()
+            .find(|k| k.len() > line_len && &k[0..line_len] == line)
+        {
+            self.input = textarea(Some(key.to_owned()), None, None)
+        } else if let Some(func) = parse::FNS
+            .iter()
+            .find(|k| k.len() > line_len && &k[0..line_len] == line)
+        {
+            self.input = textarea(Some(func.to_string()), None, None)
         }
     }
 }

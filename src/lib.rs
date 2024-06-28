@@ -64,6 +64,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
             {
                 app.input_select(true);
             }
+            KeyCode::Tab => app.auto_complete(),
             KeyCode::Down | KeyCode::Char('j')
                 if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
             {
