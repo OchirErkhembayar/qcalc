@@ -16,7 +16,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
             Constraint::Length(3),
             Constraint::Length(3),
         ])
-        .split(f.size());
+        .split(f.area());
 
     // Middle
     {
@@ -119,7 +119,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
         };
 
         f.render_widget(result, chunks[1]);
-        f.render_widget(app.input.widget(), chunks[2]);
+        f.render_widget(&app.input, chunks[2])
     }
 
     if let Some(popup) = &app.popup {
@@ -131,7 +131,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
                     Constraint::Percentage(80),
                     Constraint::Percentage(10),
                 ])
-                .split(f.size());
+                .split(f.area());
 
             let area = Layout::default()
                 .direction(Direction::Vertical)

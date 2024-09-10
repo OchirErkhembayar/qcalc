@@ -857,15 +857,7 @@ impl PartialOrd for Value {
     }
 
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let res = match (self, other) {
-            (Value::Int(lhs), Value::Int(rhs)) => lhs.cmp(rhs),
-            (Value::Float(lhs), Value::Float(rhs)) => return (*lhs).partial_cmp(rhs),
-            (Value::Int(lhs), Value::Float(rhs)) => return (*lhs as f64).partial_cmp(rhs),
-            (Value::Float(lhs), Value::Int(rhs)) => return (*lhs).partial_cmp(&(*rhs as f64)),
-            (Value::String(lhs), Value::String(rhs)) => lhs.len().cmp(&rhs.len()),
-            _ => return None,
-        };
-        Some(res)
+        Some(self.cmp(other))
     }
 }
 
