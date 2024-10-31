@@ -242,6 +242,9 @@ mod tests {
     const TEST_FILE: &str = "./test";
 
     fn new_app<'a>() -> App<'a> {
+        if !std::fs::exists(PathBuf::from(TEST_FILE)).unwrap() {
+            File::create(TEST_FILE).expect("Failed to create test file");
+        }
         App::new(PathBuf::from(TEST_FILE), false, Clipboard::new().unwrap())
     }
 
