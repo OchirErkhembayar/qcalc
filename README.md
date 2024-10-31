@@ -16,6 +16,7 @@ The software is provided "as is," without warranty of any kind, express or impli
 
 ### Features
 - Functions as types `let pow = |a, b| a ** b` `map([1, 2, 3], |x| x ** 3)`
+- Copy paste
 - Saves expressions which you can re-populate your input field with
 - Ability to save calculation results in variables
 - Built in functions

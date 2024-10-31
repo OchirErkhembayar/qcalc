@@ -4,6 +4,7 @@ use std::{
     path::PathBuf,
 };
 
+use arboard::Clipboard;
 use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Padding},
@@ -31,12 +32,13 @@ pub struct App<'ta> {
     pub expr_selector: usize,
     pub should_quit: bool,
     pub popup: Option<Popup>,
+    pub clipboard: Clipboard,
     should_save: bool,
     rc_file: PathBuf,
 }
 
 impl<'ta> App<'ta> {
-    pub fn new(rc_file: PathBuf, should_save: bool) -> Self {
+    pub fn new(rc_file: PathBuf, should_save: bool, clipboard: Clipboard) -> Self {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -48,6 +50,7 @@ impl<'ta> App<'ta> {
             input: textarea(None, None, None),
             output: None,
             err: None,
+            clipboard,
             interpreter: Interpreter::new(),
             expr_history: Vec::new(),
             expr_selector: 0,
@@ -109,10 +112,15 @@ impl<'ta> App<'ta> {
 
     pub fn reset_vars(&mut self) {
         self.interpreter.reset_vars();
+        self.update_rc();
     }
 
     pub fn input(&mut self, input: Input) {
         self.input.input(input);
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        self.input.insert_str(text);
     }
 
     pub fn eval(&mut self) {
@@ -213,7 +221,7 @@ fn textarea<'a>(
     } else {
         TextArea::default()
     };
-    textarea.set_placeholder_text(placeholder.unwrap_or("Start typing..."));
+    textarea.set_placeholder_text(placeholder.unwrap_or("Ctrl + v to paste"));
     textarea.set_block(
         Block::default()
             .title(title.unwrap_or("Input"))
@@ -234,12 +242,12 @@ mod tests {
     const TEST_FILE: &str = "./test";
 
     fn new_app<'a>() -> App<'a> {
-        App::new(PathBuf::from(TEST_FILE), false)
+        App::new(PathBuf::from(TEST_FILE), false, Clipboard::new().unwrap())
     }
 
     fn new_app_empty_rc<'a>() -> App<'a> {
         File::create(TEST_FILE).expect("Failed to create test file");
-        App::new(PathBuf::from(TEST_FILE), true)
+        App::new(PathBuf::from(TEST_FILE), true, Clipboard::new().unwrap())
     }
 
     fn input_and_evaluate(app: &mut App, input: &str) {

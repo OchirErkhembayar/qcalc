@@ -1,9 +1,11 @@
+use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use interpreter::{Interpreter, Value};
 use parse::Parser;
 use ratatui::{prelude::CrosstermBackend, Terminal};
 use std::{error::Error, io};
 use token::Tokenizer;
+use tui_textarea::Input;
 
 use app::{App, Popup};
 use event::{Event, EventHandler};
@@ -27,7 +29,7 @@ pub fn tui() -> Result<(), Box<dyn Error>> {
     tui.enter().expect("Failed to initialise TUI");
     let mut rc_file = dirs_next::home_dir().expect("Could not find home directory");
     rc_file.push(RC_PATH);
-    let mut app = App::new(rc_file, true);
+    let mut app = App::new(rc_file, true, Clipboard::new()?);
 
     while !app.should_quit {
         tui.draw(&mut app)?;
@@ -70,11 +72,23 @@ fn update(app: &mut App, key_event: KeyEvent) {
             {
                 app.input_select(false);
             }
-            KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.reset_vars();
+            }
+            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(output) = app.output.as_ref() {
+                    match app.clipboard.set_text(output.to_string()) {
+                        Ok(_) => {}
+                        Err(err) => app.err = Some(err.to_string()),
+                    }
+                }
             }
             KeyCode::Char('h') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Help);
+            }
+            KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                let text = app.clipboard.get_text().unwrap();
+                app.paste(&text);
             }
             KeyCode::Char('l') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Language);

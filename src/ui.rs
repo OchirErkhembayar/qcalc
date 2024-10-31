@@ -103,7 +103,11 @@ pub fn render(app: &mut App, f: &mut Frame) {
             let (content, color, border_color) = if let Some(msg) = &app.err {
                 (format!("ERROR: {}", msg), Color::Red, Color::Red)
             } else if let Some(msg) = &app.output {
-                (format!("Result: {}", msg), Color::Green, Color::Green)
+                (
+                    format!("Result: {}    (Ctrl + c to copy)", msg),
+                    Color::Green,
+                    Color::Green,
+                )
             } else {
                 (
                     "Press enter to evaluate expression".to_string(), // Could use lazy_static here
@@ -172,8 +176,8 @@ Examples: \"log10(100)\", \"cos(pi)\"
 
 Shortcuts
 ---------
-(Ctrl v) Reset vars
-(Ctrl x) Delete selected expression
+(Ctrl d) Reset variables
+(Ctrl x) Delete selected expression from history
 "
             }
             Popup::Function => {
