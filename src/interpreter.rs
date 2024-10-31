@@ -899,13 +899,10 @@ impl Eq for Value {}
 impl Ord for Value {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.gt(other) {
-            eprintln!("Gt {:?} {:?}", self, other);
             std::cmp::Ordering::Greater
         } else if self.lt(other) {
-            eprintln!("Lt {:?} {:?}", self, other);
             std::cmp::Ordering::Less
         } else if self.eq(other) {
-            eprintln!("Eq {:?} {:?}", self, other);
             std::cmp::Ordering::Equal
         } else {
             panic!("Not possible");
