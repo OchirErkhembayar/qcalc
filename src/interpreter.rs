@@ -856,6 +856,10 @@ impl PartialOrd for Value {
         }
     }
 
+    fn lt(&self, other: &Self) -> bool {
+        !self.gt(other) && !self.eq(other)
+    }
+
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -894,7 +898,18 @@ impl Eq for Value {}
 
 impl Ord for Value {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+        if self.gt(other) {
+            eprintln!("Gt {:?} {:?}", self, other);
+            std::cmp::Ordering::Greater
+        } else if self.lt(other) {
+            eprintln!("Lt {:?} {:?}", self, other);
+            std::cmp::Ordering::Less
+        } else if self.eq(other) {
+            eprintln!("Eq {:?} {:?}", self, other);
+            std::cmp::Ordering::Equal
+        } else {
+            panic!("Not possible");
+        }
     }
 }
 
@@ -1037,5 +1052,12 @@ mod tests {
 
         assert!(Value::Float(0.0) == Value::Int(0));
         assert!(Value::Int(0) == Value::Float(0.0));
+    }
+
+    #[test]
+    fn test_ord() {
+        let vals = vec![Value::Int(1), Value::Int(2), Value::Int(3)];
+        let min = vals.iter().min().unwrap();
+        assert_eq!(Value::Int(1), *min);
     }
 }
