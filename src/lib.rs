@@ -87,8 +87,9 @@ fn update(app: &mut App, key_event: KeyEvent) {
                 app.popup = Some(Popup::Help);
             }
             KeyCode::Char('v') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                let text = app.clipboard.get_text().unwrap();
-                app.paste(&text);
+                if let Ok(text) = app.clipboard.get_text() {
+                    app.paste(&text);
+                }
             }
             KeyCode::Char('l') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.popup = Some(Popup::Language);
