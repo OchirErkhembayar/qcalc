@@ -9,7 +9,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Padding},
 };
-use tui_textarea::{Input, TextArea};
+use ratatui_textarea::{Input, TextArea};
 
 use crate::{
     interpreter::{Interpreter, Stmt, Value},
@@ -230,8 +230,8 @@ fn textarea<'a>(
             .padding(Padding::horizontal(1)),
     );
     textarea.set_cursor_line_style(Style::default());
-    textarea.move_cursor(tui_textarea::CursorMove::Down);
-    textarea.move_cursor(tui_textarea::CursorMove::End);
+    textarea.move_cursor(ratatui_textarea::CursorMove::Down);
+    textarea.move_cursor(ratatui_textarea::CursorMove::End);
     textarea
 }
 

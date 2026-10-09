@@ -5,15 +5,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
+use crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 
 /// Terminal events.
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
     Tick,
     Key(KeyEvent),
-    Mouse(MouseEvent),
-    Resize(u16, u16),
 }
 
 #[derive(Debug)]
@@ -47,8 +45,8 @@ impl EventHandler {
                                     Ok(()) // ignore KeyEventKind::Release on windows
                                 }
                             }
-                            CrosstermEvent::Mouse(e) => sender.send(Event::Mouse(e)),
-                            CrosstermEvent::Resize(w, h) => sender.send(Event::Resize(w, h)),
+                            CrosstermEvent::Mouse(_) => Ok(()),
+                            CrosstermEvent::Resize(_, _) => Ok(()),
                             _ => unimplemented!(),
                         }
                         .expect("failed to send terminal event")

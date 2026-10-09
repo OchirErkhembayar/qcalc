@@ -1,14 +1,12 @@
+use app::{App, Popup};
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use event::{Event, EventHandler};
 use interpreter::{Interpreter, Value};
 use parse::Parser;
 use ratatui::{prelude::CrosstermBackend, Terminal};
 use std::{error::Error, io};
 use token::Tokenizer;
-use tui_textarea::Input;
-
-use app::{App, Popup};
-use event::{Event, EventHandler};
 use tui::Tui;
 
 const RC_PATH: &str = ".qcalcrc";
@@ -37,8 +35,6 @@ pub fn tui() -> Result<(), Box<dyn Error>> {
         match tui.events.next()? {
             Event::Tick => {}
             Event::Key(key_event) => update(&mut app, key_event),
-            Event::Mouse(_) => {}
-            Event::Resize(_, _) => {}
         };
     }
 
