@@ -171,6 +171,7 @@ log(_base_, _arg_) ln(_arg_)     cbrt(_arg_)   ceil(_arg_)      exp(_arg_)
 degs(_rads_)       rads(_degs_)  round(_arg_)  floor(_arg_)     exp2(_arg_)
 fract(_arg_)       recip(_arg_)  abs(_arg_)    factorial(_arg_) range(_arg_, _arg_)
 elem(_arg_, _idx_) min([_arg_])  max([_arg_])  quadr(_arg_, _arg_, _arg_)
+sf(_arg_, _sig_figs_)
 
 Examples: \"log10(100)\", \"cos(pi)\"
 

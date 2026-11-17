@@ -400,6 +400,19 @@ impl Interpreter {
                     Func::Cube => arguments[0].to_float()?.powi(3),
                     Func::Cbrt => arguments[0].to_float()?.cbrt(),
                     Func::Round => arguments[0].to_float()?.round(),
+                    Func::Sf => {
+                        let num = arguments[0].to_float()?;
+                        let sig_figs = arguments[1].to_int()? as i64;
+                        if num == 0.0 || !num.is_finite() || sig_figs <= 0 {
+                            num
+                        } else {
+                            let magnitude = num.abs().log10().floor() as i64;
+                            let power = (sig_figs - 1 - magnitude) as i32;
+                            let factor = 10_f64.powi(power);
+
+                            (num * factor).round() / factor
+                        }
+                    }
                     Func::Ceil => arguments[0].to_float()?.ceil(),
                     Func::Floor => arguments[0].to_float()?.floor(),
                     Func::Exp => arguments[0].to_float()?.exp(),

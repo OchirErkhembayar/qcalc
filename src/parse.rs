@@ -51,6 +51,8 @@ const MIN: &str = "min";
 const MAX: &str = "max";
 const QUADR: &str = "quadr";
 
+const SF: &str = "sf";
+
 #[derive(Debug)]
 pub struct Parser<'a> {
     tokenizer: Peekable<Tokenizer<'a>>,
@@ -106,6 +108,7 @@ pub enum Func {
     Min,
     Max,
     Quadr,
+    Sf,
 }
 
 impl Func {
@@ -151,6 +154,7 @@ impl Func {
             Func::Min => 1,
             Func::Max => 1,
             Func::Quadr => 3,
+            Func::Sf => 2,
         }
     }
 }
@@ -625,6 +629,7 @@ impl<'a> Parser<'a> {
                     MIN => Func::Min,
                     MAX => Func::Max,
                     QUADR => Func::Quadr,
+                    SF => Func::Sf,
                     _ => return Ok(Expr::Var(func)),
                 };
                 self.consume(Token::LParen, "Missing opening parentheses")?;
@@ -706,6 +711,7 @@ impl Display for Func {
                 Func::Min => MIN,
                 Func::Max => MAX,
                 Func::Quadr => QUADR,
+                Func::Sf => SF,
             }
         )
     }
